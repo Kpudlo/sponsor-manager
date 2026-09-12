@@ -1,0 +1,122 @@
+{
+    "key": "group_sponsor_manager_booking",
+    "title": "Sponsor Booking",
+    "fields": [
+        {
+            "key": "field_sponsor_manager_name",
+            "label": "Advertiser / Sponsor Name",
+            "name": "sponsor_name",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Who is this ad sold to? Shown in the admin list and inventory report; separate from the internal ad title.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_sponsor_manager_start",
+            "label": "Start Date",
+            "name": "sponsor_start_date",
+            "aria-label": "",
+            "type": "date_picker",
+            "instructions": "Leave blank to go live immediately.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "display_format": "F j, Y",
+            "return_format": "Ymd",
+            "first_day": 1
+        },
+        {
+            "key": "field_sponsor_manager_end",
+            "label": "End Date",
+            "name": "sponsor_end_date",
+            "aria-label": "",
+            "type": "date_picker",
+            "instructions": "Leave blank to run indefinitely. The placement auto-stops rendering after this date — no manual cleanup needed.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "display_format": "F j, Y",
+            "return_format": "Ymd",
+            "first_day": 1
+        },
+        {
+            "key": "field_sponsor_manager_priority",
+            "label": "Rotation Priority",
+            "name": "sponsor_priority",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "Higher number = shown first / more often when a placement has more than one active sponsor.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": 10,
+            "min": "",
+            "max": "",
+            "placeholder": "",
+            "step": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_sponsor_manager_notes",
+            "label": "Internal Notes",
+            "name": "sponsor_internal_notes",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Deal terms, contact, PO#. Not displayed on the front end.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": "",
+            "new_lines": ""
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "sponsor_ad"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": "",
+    "show_in_rest": 0
+}
