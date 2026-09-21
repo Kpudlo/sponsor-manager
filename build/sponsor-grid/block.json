@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "sponsor-manager/grid",
+  "version": "1.0.0",
+  "title": "Sponsor Grid",
+  "category": "widgets",
+  "icon": "grid-view",
+  "description": "Display up to four sponsor ads in a responsive grid with priority-weighted rotation.",
+  "keywords": [
+    "sponsor",
+    "ad",
+    "grid",
+    "banner"
+  ],
+  "attributes": {
+    "placement": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "supports": {
+    "html": false,
+    "align": [
+      "wide",
+      "full"
+    ]
+  },
+  "textdomain": "sponsor-manager",
+  "editorScript": "file:./index.js",
+  "style": "file:./style-index.css",
+  "viewScript": "file:./view.js",
+  "render": "file:./render.php"
+}

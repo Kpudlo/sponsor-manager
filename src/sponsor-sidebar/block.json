@@ -1,0 +1,24 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "sponsor-manager/sidebar",
+	"version": "1.0.0",
+	"title": "Sponsor Sidebar",
+	"category": "widgets",
+	"icon": "align-wide",
+	"description": "Display all active sponsor ads for a placement in a vertical sidebar stack.",
+	"keywords": [ "sponsor", "ad", "sidebar", "banner" ],
+	"attributes": {
+		"placement": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"supports": {
+		"html": false
+	},
+	"textdomain": "sponsor-manager",
+	"editorScript": "file:./index.js",
+	"style": "file:./style-index.css",
+	"render": "file:./render.php"
+}

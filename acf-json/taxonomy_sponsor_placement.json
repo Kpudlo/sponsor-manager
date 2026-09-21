@@ -3,7 +3,7 @@
     "title": "Sponsor Placements",
     "menu_order": 0,
     "active": true,
-    "taxonomy": "sponsor-placement",
+    "taxonomy": "sponsor_placement",
     "object_type": [
         "sponsor_ad"
     ],

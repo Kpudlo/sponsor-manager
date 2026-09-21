@@ -1,12 +1,12 @@
 <?php
 /**
  * Plugin Name: Sponsor Manager
- * Description: Booking, scheduling, and sellable-inventory system for sponsor placements (sidebar, mega menu, landing pages, single posts/pages, targetable by category). Owns the sponsor_ad post type and sponsor-placement taxonomy (see acf-json/); category targeting uses core's "category" taxonomy and is attached at runtime, not part of that JSON.
+ * Description: Booking, scheduling, and sellable-inventory system for sponsor placements (sidebar, mega menu, landing pages, single posts/pages, targetable by sponsor placement). 
  * Author: Bemis Tech
  * Author URI: https://bemistech.com
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 1.0.0
+ * Version: 1.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -14,29 +14,69 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'SPONSOR_MANAGER_LEGACY_PAUSE_META', 'expired' ); // Repurposed legacy field: manual pause override.
+define( 'SPONSOR_MANAGER_PATH', plugin_dir_path( __FILE__ ) );
+define( 'SPONSOR_MANAGER_URL', plugin_dir_url( __FILE__ ) );
+
+require_once SPONSOR_MANAGER_PATH . 'includes/block-helpers.php';
+require_once SPONSOR_MANAGER_PATH . 'includes/blocks.php';
+
+add_action( 'after_setup_theme', 'sponsor_manager_register_image_sizes' );
+function sponsor_manager_register_image_sizes() {
+	// 3840x2160 source ads → 16:9 display crop at a usable web size.
+	add_image_size( 'sponsor-ad', 1280, 720, true );
+}
 
 /* -------------------------------------------------------------------------
- * Schema: category targeting + local ACF fields (additive; never touches
- * the existing DB-stored "Ad Fields" group).
+ * Dependency check: requires Advanced Custom Fields PRO or Secure Custom Fields.
  *
- * The Sponsor Booking field group, the sponsor_ad post type ("Ads"), and the
- * sponsor-placement taxonomy ("Ad Placements") all live in acf-json/ as ACF
- * Local JSON — not a acf_add_local_field_group() array for the fields, and
- * not bare register_post_type()/register_taxonomy() calls for the other
- * two. Both sponsor_ad and sponsor-placement were previously DB-only ACF items
- * (Custom Fields → Post Types / Taxonomies) with no owning plugin;
- * post_type_69934f2a6c7af.json and taxonomy_699350d5b4842.json now mirror
- * those same records by key, so this plugin is their source of truth going
- * forward. Editing any of the three from wp-admin still writes straight
- * back to its JSON file, and the live site picks up all three automatically
- * — or via Custom Fields → Tools → Import — just by deploying this plugin
- * folder, no manual field/post-type/taxonomy recreation required.
- *
- * sponsor-placement's own object_type is just sponsor_ad — it does NOT include
- * "category". Category targeting is core's own "category" taxonomy,
- * attached to sponsor_ad at runtime below, deliberately kept out of this
- * JSON: category isn't a taxonomy this plugin defines, just one it reuses.
+ * The plugin's fields, post type, and taxonomy are all ACF-JSON registered
+ * using PRO-only features (Post Type / Taxonomy registration UI), which the
+ * free version of ACF does not include. Both ACF PRO and Secure Custom Fields
+ * (its free, WordPress.org-hosted counterpart) define the ACF_PRO constant;
+ * plain "Advanced Custom Fields" does not, so checking it is enough to tell
+ * them apart.
  * ---------------------------------------------------------------------- */
+
+function sponsor_manager_has_required_acf() {
+	return defined( 'ACF_PRO' ) && ACF_PRO;
+}
+
+add_action( 'admin_init', 'sponsor_manager_check_dependencies' );
+function sponsor_manager_check_dependencies() {
+	if ( sponsor_manager_has_required_acf() ) {
+		return;
+	}
+
+	if ( ! function_exists( 'deactivate_plugins' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	}
+
+	deactivate_plugins( plugin_basename( __FILE__ ) );
+	add_action( 'admin_notices', 'sponsor_manager_missing_acf_notice' );
+
+	if ( isset( $_GET['activate'] ) ) {
+		unset( $_GET['activate'] );
+	}
+}
+
+function sponsor_manager_missing_acf_notice() {
+	printf(
+		'<div class="notice notice-error"><p>%1$s</p><p>%2$s</p></div>',
+		esc_html__( 'Sponsor Manager requires either Advanced Custom Fields PRO or Secure Custom Fields to be installed and active. The plugin has been deactivated until one of them is available.', 'sponsor-manager' ),
+		wp_kses_post( sprintf(
+			'<a href="%1$s" target="_blank" rel="noopener noreferrer">%2$s</a> &nbsp;|&nbsp; <a href="%3$s" target="_blank" rel="noopener noreferrer">%4$s</a>',
+			esc_url( 'https://www.advancedcustomfields.com/pro/' ),
+			esc_html__( 'Get Advanced Custom Fields PRO', 'sponsor-manager' ),
+			esc_url( self_admin_url( 'plugin-install.php?s=secure-custom-fields&tab=search&type=term' ) ),
+			esc_html__( 'Install Secure Custom Fields (free)', 'sponsor-manager' )
+		) )
+	);
+}
+
+// Bail out entirely — on the front end too — if the requirement isn't met.
+if ( ! sponsor_manager_has_required_acf() ) {
+	return;
+}
 
 add_filter( 'acf/settings/load_json', function ( $paths ) {
 	$paths[] = __DIR__ . '/acf-json';
@@ -53,7 +93,7 @@ function sponsor_manager_ensure_placement_terms() {
 	if ( get_option( 'sponsor_manager_terms_seeded_v1' ) ) {
 		return;
 	}
-	if ( ! taxonomy_exists( 'sponsor-placement' ) ) {
+	if ( ! taxonomy_exists( 'sponsor_placement' ) ) {
 		return;
 	}
 
@@ -71,8 +111,8 @@ function sponsor_manager_ensure_placement_terms() {
 	foreach ( $zones as $zone_label => $zone_slug ) {
 		foreach ( $properties as $prop_label => $prop_slug ) {
 			$slug = $zone_slug . '-' . $prop_slug;
-			if ( ! term_exists( $slug, 'sponsor-placement' ) ) {
-				wp_insert_term( $zone_label . ' - ' . $prop_label, 'sponsor-placement', array( 'slug' => $slug ) );
+			if ( ! term_exists( $slug, 'sponsor_placement' ) ) {
+				wp_insert_term( $zone_label . ' - ' . $prop_label, 'sponsor_placement', array( 'slug' => $slug ) );
 			}
 		}
 	}
@@ -186,7 +226,7 @@ function sponsor_manager_get_ads( $placement_slug, $args = array() ) {
 		'no_found_rows'  => true,
 		'tax_query'      => array(
 			array(
-				'taxonomy' => 'sponsor-placement',
+				'taxonomy' => 'sponsor_placement',
 				'field'    => 'slug',
 				'terms'    => $placement_slug,
 			),
@@ -223,7 +263,10 @@ function sponsor_manager_get_ads( $placement_slug, $args = array() ) {
 			$link = get_post_meta( $post->ID, 'link', true );
 		}
 
-		$img_url = get_the_post_thumbnail_url( $post->ID, 'full' );
+		$img_url = get_the_post_thumbnail_url( $post->ID, 'sponsor-ad' );
+		if ( empty( $img_url ) ) {
+			$img_url = get_the_post_thumbnail_url( $post->ID, 'large' );
+		}
 		// Known-broken local attachment reference for the COP ad; carried over from the legacy renderer.
 		if ( 1345437 === $post->ID || empty( $img_url ) || false !== strpos( (string) $img_url, 'dinosaur_pins_website_ad' ) ) {
 			if ( 1345437 === $post->ID ) {
@@ -291,7 +334,7 @@ add_action( 'manage_sponsor_ad_posts_custom_column', function ( $column, $post_i
 			break;
 
 		case 'placements':
-			$terms = get_the_terms( $post_id, 'sponsor-placement' );
+			$terms = get_the_terms( $post_id, 'sponsor_placement' );
 			echo ( $terms && ! is_wp_error( $terms ) )
 				? esc_html( implode( ', ', wp_list_pluck( $terms, 'name' ) ) )
 				: '<em>none assigned</em>';
@@ -355,7 +398,7 @@ add_action( 'pre_get_posts', function ( $query ) {
  * ---------------------------------------------------------------------- */
 
 add_action( 'wp_dashboard_setup', function () {
-	wp_add_dashboard_widget( 'sponsor_manager_alerts', 'Sponsor Ads — Needs Attention', 'sponsor_manager_render_dashboard_widget' );
+	wp_add_dashboard_widget( 'sponsor_manager_alerts', 'Sponsor Manager — Needs Attention', 'sponsor_manager_render_dashboard_widget' );
 } );
 
 function sponsor_manager_render_dashboard_widget() {
@@ -415,11 +458,15 @@ function sponsor_manager_render_dashboard_widget() {
 }
 
 /* -------------------------------------------------------------------------
- * Admin menu: a custom "Sponsor Manager" top-level page (with its own
- * Dashboard / How to Use tabs) that the sponsor_ad post type nests under
- * (see admin_menu_parent in acf-json/post_type_sponsor_ad.json), instead of
- * the post type generating its own top-level menu whose click target would
- * just be the raw post list.
+ * Admin: "Sponsor Manager" top-level menu — dashboard, ad inventory, help.
+ *
+ * The CPT and its taxonomy are nested under this page (see admin_menu_parent
+ * in acf-json/post_type_sponsor_ad.json), which is why the parent must be
+ * registered early (priority 5) — core attaches the CPT's own "All Sponsor
+ * Ads" submenu on the default 'admin_menu' priority (10), and needs the
+ * parent slug to already exist. Nesting a post type like this means core no
+ * longer auto-adds "Add New" or the taxonomy submenu for it, so those are
+ * added explicitly below, after that default-priority core hook has run.
  * ---------------------------------------------------------------------- */
 
 add_action( 'admin_menu', function () {
@@ -427,173 +474,152 @@ add_action( 'admin_menu', function () {
 		'Sponsor Manager',
 		'Sponsor Manager',
 		'edit_posts',
-		'sponsor-manager',
+		'sponsor_manager',
 		'sponsor_manager_render_dashboard_page',
-		'dashicons-screenoptions'
+		'dashicons-megaphone',
+		25
 	);
-
-	// Relabel the menu's own first submenu entry (defaults to the parent's title) to "Dashboard".
-	// Position 0 pins it first — core's own _add_post_type_submenus() (wp-includes/post.php)
-	// separately adds an "All Sponsor Ads" entry here for the sponsor_ad post type, since its
-	// show_in_menu is reparented to this slug (see admin_menu_parent in the CPT's ACF JSON).
+	// add_menu_page() auto-adds a first submenu labeled after the page title ("Sponsor Manager");
+	// re-declaring it here with the same slug overrides just that label to "Dashboard".
 	add_submenu_page(
-		'sponsor-manager',
-		'Sponsor Manager — Dashboard',
+		'sponsor_manager',
+		'Sponsor Manager',
 		'Dashboard',
 		'edit_posts',
-		'sponsor-manager',
-		'sponsor_manager_render_dashboard_page',
-		0
+		'sponsor_manager',
+		'sponsor_manager_render_dashboard_page'
 	);
+}, 5 );
 
+add_action( 'admin_menu', function () {
 	add_submenu_page(
-		'sponsor-manager',
+		'sponsor_manager',
 		'Add New Sponsor Ad',
-		'Add New',
+		'Add New Ad',
 		'edit_posts',
 		'post-new.php?post_type=sponsor_ad'
 	);
-
 	add_submenu_page(
-		'sponsor-manager',
+		'sponsor_manager',
 		'Sponsor Placements',
 		'Placements',
 		'manage_categories',
-		'edit-tags.php?taxonomy=sponsor-placement&post_type=sponsor_ad'
+		'edit-tags.php?taxonomy=sponsor_placement&post_type=sponsor_ad'
 	);
-} );
+}, 20 );
 
-function sponsor_manager_get_stats() {
-	$counts    = wp_count_posts( 'sponsor_ad' );
-	$total_ads = 0;
-	foreach ( array( 'publish', 'draft', 'pending', 'future', 'private' ) as $status ) {
-		if ( isset( $counts->$status ) ) {
-			$total_ads += (int) $counts->$status;
-		}
-	}
-
-	$published_ids = get_posts( array(
+function sponsor_manager_get_dashboard_stats() {
+	$ad_ids = get_posts( array(
 		'post_type'      => 'sponsor_ad',
 		'post_status'    => 'publish',
 		'posts_per_page' => -1,
 		'fields'         => 'ids',
 	) );
-	$active_ads = 0;
-	foreach ( $published_ids as $ad_id ) {
-		if ( 'active' === sponsor_manager_compute_status( $ad_id ) ) {
-			$active_ads++;
+
+	$active = 0;
+	foreach ( $ad_ids as $ad_id ) {
+		if ( 'active' === sponsor_manager_refresh_status( $ad_id ) ) {
+			$active++;
 		}
 	}
 
-	$placement_count = wp_count_terms( array( 'taxonomy' => 'sponsor-placement', 'hide_empty' => false ) );
+	$placement_count = wp_count_terms( array( 'taxonomy' => 'sponsor_placement', 'hide_empty' => false ) );
 
 	return array(
-		'active_ads' => $active_ads,
-		'total_ads'  => $total_ads,
-		'placements' => is_wp_error( $placement_count ) ? 0 : (int) $placement_count,
+		'active_ads'       => $active,
+		'total_ads'        => count( $ad_ids ),
+		'total_placements' => is_wp_error( $placement_count ) ? 0 : (int) $placement_count,
 	);
 }
 
 function sponsor_manager_render_dashboard_page() {
-	$tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'dashboard';
-	if ( ! in_array( $tab, array( 'dashboard', 'how-to-use' ), true ) ) {
-		$tab = 'dashboard';
+	$tab      = ( isset( $_GET['tab'] ) && 'how-to-use' === $_GET['tab'] ) ? 'how-to-use' : 'overview';
+	$base_url = admin_url( 'admin.php?page=sponsor_manager' );
+
+	echo '<div class="wrap">';
+	echo '<h1>Sponsor Manager</h1>';
+
+	printf( '<h2 class="nav-tab-wrapper">' );
+	printf(
+		'<a href="%1$s" class="nav-tab %2$s">%3$s</a>',
+		esc_url( $base_url ),
+		'overview' === $tab ? 'nav-tab-active' : '',
+		esc_html__( 'Overview', 'sponsor-manager' )
+	);
+	printf(
+		'<a href="%1$s" class="nav-tab %2$s">%3$s</a>',
+		esc_url( add_query_arg( 'tab', 'how-to-use', $base_url ) ),
+		'how-to-use' === $tab ? 'nav-tab-active' : '',
+		esc_html__( 'How to Use', 'sponsor-manager' )
+	);
+	echo '</h2>';
+
+	if ( 'how-to-use' === $tab ) {
+		sponsor_manager_render_how_to_use_tab();
+	} else {
+		sponsor_manager_render_overview_tab();
 	}
-	$base_url = admin_url( 'admin.php?page=sponsor-manager' );
-	?>
-	<div class="wrap">
-		<h1>Sponsor Manager</h1>
 
-		<h2 class="nav-tab-wrapper">
-			<a href="<?php echo esc_url( $base_url ); ?>" class="nav-tab <?php echo 'dashboard' === $tab ? 'nav-tab-active' : ''; ?>">Dashboard</a>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'how-to-use', $base_url ) ); ?>" class="nav-tab <?php echo 'how-to-use' === $tab ? 'nav-tab-active' : ''; ?>">How to Use</a>
-		</h2>
-
-		<?php if ( 'how-to-use' === $tab ) : ?>
-			<?php sponsor_manager_render_howto_tab(); ?>
-		<?php else : ?>
-			<?php sponsor_manager_render_dashboard_tab(); ?>
-		<?php endif; ?>
-	</div>
-	<?php
+	echo '</div>';
 }
 
-function sponsor_manager_render_dashboard_tab() {
-	$stats = sponsor_manager_get_stats();
-	?>
-	<p style="margin-top:1em;">
-		<a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=sponsor_ad' ) ); ?>" class="button button-primary">Add New Sponsor Ad</a>
-		<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=sponsor_ad' ) ); ?>" class="button">All Sponsor Ads</a>
-		<a href="<?php echo esc_url( admin_url( 'edit-tags.php?taxonomy=sponsor-placement&post_type=sponsor_ad' ) ); ?>" class="button">Manage Placements</a>
-	</p>
+function sponsor_manager_render_overview_tab() {
+	$stats = sponsor_manager_get_dashboard_stats();
+	$cards = array(
+		array( 'label' => __( 'Active Ads', 'sponsor-manager' ), 'value' => $stats['active_ads'] ),
+		array( 'label' => __( 'Total Ads', 'sponsor-manager' ), 'value' => $stats['total_ads'] ),
+		array( 'label' => __( 'Total Placements', 'sponsor-manager' ), 'value' => $stats['total_placements'] ),
+	);
 
-	<div style="display:flex;gap:16px;flex-wrap:wrap;margin:1.5em 0;">
-		<?php
-		$cards = array(
-			array( 'label' => 'Active Ads', 'value' => $stats['active_ads'], 'color' => '#1a7f37' ),
-			array( 'label' => 'Total Ads', 'value' => $stats['total_ads'], 'color' => '#2271b1' ),
-			array( 'label' => 'Placements', 'value' => $stats['placements'], 'color' => '#9a6700' ),
+	echo '<div style="display:flex;gap:16px;margin:20px 0;flex-wrap:wrap;">';
+	foreach ( $cards as $card ) {
+		printf(
+			'<div style="background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:16px 24px;min-width:160px;">
+				<div style="font-size:28px;font-weight:600;line-height:1.2;">%1$s</div>
+				<div style="color:#646970;">%2$s</div>
+			</div>',
+			esc_html( $card['value'] ),
+			esc_html( $card['label'] )
 		);
-		foreach ( $cards as $card ) :
-			?>
-			<div style="background:#fff;border:1px solid #c3c4c7;border-left:4px solid <?php echo esc_attr( $card['color'] ); ?>;border-radius:4px;padding:16px 24px;min-width:160px;">
-				<div style="font-size:32px;font-weight:600;line-height:1.2;"><?php echo esc_html( $card['value'] ); ?></div>
-				<div style="color:#50575e;"><?php echo esc_html( $card['label'] ); ?></div>
-			</div>
-			<?php
-		endforeach;
-		?>
-	</div>
+	}
+	echo '</div>';
 
-	<?php sponsor_manager_render_inventory_table(); ?>
-	<?php
+	echo '<h2>' . esc_html__( 'Ad Inventory', 'sponsor-manager' ) . '</h2>';
+	echo '<p>' . esc_html__( "What's booked and what's open to sell, by placement.", 'sponsor-manager' ) . '</p>';
+	sponsor_manager_render_inventory_table();
 }
 
-function sponsor_manager_render_howto_tab() {
-	?>
-	<div style="margin-top:1em;max-width:800px;">
-		<p>Booking, scheduling, and sellable-inventory system for sponsor placements (sidebar, mega menu, landing pages, single posts/pages) — targetable by category.</p>
-
-		<h3>1. Placements</h3>
-		<p>Every sponsor ad is assigned one or more <strong>Placements</strong> (the <code>sponsor-placement</code> taxonomy) — these describe <em>where</em> an ad can appear (e.g. sidebar, mega menu, a specific property/zone combination). A placement is what your theme/template code queries for when it asks "what ad(s) should show here?"</p>
-
-		<h3>2. Category targeting</h3>
-		<p>Optionally assign an ad to one or more of the site's regular <strong>Categories</strong>. If an ad has no category selected, it's eligible everywhere. If it has categories selected, it only shows on posts/pages/archives in those categories.</p>
-
-		<h3>3. Scheduling &amp; status</h3>
-		<p>Each ad has a start date, end date, and priority. Its status is computed automatically and shown as a colored badge on the All Sponsor Ads list:</p>
-		<ul style="list-style:disc;margin-left:2em;">
-			<li><strong>Active</strong> — published, within its date range, not paused</li>
-			<li><strong>Scheduled</strong> — start date is in the future</li>
-			<li><strong>Expired</strong> — end date has passed</li>
-			<li><strong>Paused</strong> — the "Paused (manual override)" checkbox is checked, pulling it from rotation immediately regardless of dates</li>
-			<li><strong>Draft</strong> — not published</li>
-		</ul>
-		<p>A daily scheduled task keeps every ad's status current even if nobody edits it.</p>
-
-		<h3>4. Priority &amp; rotation</h3>
-		<p>When more than one ad is eligible for the same placement/category, higher <strong>Priority</strong> ads are shown first; ads that share the same priority rotate randomly so no single sponsor is stuck at the bottom.</p>
-
-		<h3>5. Ad Inventory</h3>
-		<p>The Dashboard tab's inventory table shows, per placement, who's currently booked and whether the slot is open to sell.</p>
-
-		<h3>For developers</h3>
-		<p>Templates and theme code pull ads with <code>sponsor_manager_get_ads( $placement_slug, $args )</code>, which returns an ordered array of eligible ads (title, image, link, priority) for the given placement, auto-detecting category context from the current queried post/archive unless a <code>category_id</code> is passed explicitly.</p>
-	</div>
-	<?php
+function sponsor_manager_render_how_to_use_tab() {
+	echo '<div style="max-width:760px;margin-top:20px;">';
+	echo '<h2>' . esc_html__( 'How Sponsor Manager Works', 'sponsor-manager' ) . '</h2>';
+	echo '<ol style="list-style:decimal;margin-left:1.2em;">
+		<li><strong>Create a Sponsor Ad</strong> under Sponsor Manager → Add New Ad. Set the sponsor name, ad image (featured image), and destination link.</li>
+		<li><strong>Assign a Placement</strong> (sidebar, mega menu, landing page, single post/page) from Sponsor Manager → Placements — this controls where the ad is eligible to appear.</li>
+		<li><strong>Schedule it.</strong> Leave the start date blank to go live immediately, and the end date blank to run indefinitely. The ad moves through Scheduled → Active → Expired automatically based on today\'s date — no manual cleanup required.</li>
+		<li><strong>Set a priority</strong> to control ordering when a placement has more than one active sponsor; higher numbers are shown first (and more often), with random rotation among ties.</li>
+		<li><strong>Target by category</strong> (optional) by assigning post categories to the ad, the same as you would a normal post — it will then only serve on single posts/pages within those categories. Leave it uncategorized to serve everywhere.</li>
+		<li><strong>Pause anytime</strong> with the "Paused (manual override)" checkbox to instantly pull an ad from rotation, regardless of its scheduled dates.</li>
+		<li><strong>Place ads on the site</strong> using the <em>Sponsor Grid</em> block (four-up horizontal grid with priority-weighted rotation) or the <em>Sponsor Sidebar</em> block (vertical stack of all active ads). Both blocks are in the block inserter under Widgets — pick a placement in the block settings.</li>
+	</ol>';
+	echo '<h2>' . esc_html__( 'Where to Check Status', 'sponsor-manager' ) . '</h2>';
+	echo '<ul style="list-style:disc;margin-left:1.2em;">
+		<li>The <strong>Overview</strong> tab shows current totals and what\'s open to sell, by placement.</li>
+		<li>The <strong>Status</strong> column on the Sponsor Ads list shows Active / Scheduled / Expired / Paused / Draft at a glance.</li>
+		<li>The dashboard widget ("Sponsor Manager — Needs Attention") flags anything expiring within 7 days, or still published past its end date.</li>
+	</ul>';
+	echo '</div>';
 }
 
 function sponsor_manager_render_inventory_table() {
-	$terms = get_terms( array( 'taxonomy' => 'sponsor-placement', 'hide_empty' => false ) );
+	$terms = get_terms( array( 'taxonomy' => 'sponsor_placement', 'hide_empty' => false ) );
 	$today = current_time( 'Ymd' );
 
-	echo '<h2>Ad Inventory</h2><p>What\'s booked and what\'s open to sell, by placement.</p>';
 	echo '<table class="widefat striped"><thead><tr>';
 	echo '<th>Placement</th><th>Current / Upcoming Bookings</th><th>Availability</th>';
 	echo '</tr></thead><tbody>';
 
 	if ( is_wp_error( $terms ) || empty( $terms ) ) {
-		echo '<tr><td colspan="3">No sponsor-placement terms found.</td></tr>';
+		echo '<tr><td colspan="3">No sponsor_placement terms found.</td></tr>';
 	} else {
 		foreach ( $terms as $term ) {
 			$query = new WP_Query( array(
@@ -602,7 +628,7 @@ function sponsor_manager_render_inventory_table() {
 				'posts_per_page' => -1,
 				'no_found_rows'  => true,
 				'tax_query'      => array(
-					array( 'taxonomy' => 'sponsor-placement', 'field' => 'term_id', 'terms' => $term->term_id ),
+					array( 'taxonomy' => 'sponsor_placement', 'field' => 'term_id', 'terms' => $term->term_id ),
 				),
 			) );
 

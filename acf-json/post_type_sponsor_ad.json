@@ -51,7 +51,7 @@
     "publicly_queryable": true,
     "show_ui": true,
     "show_in_menu": true,
-    "admin_menu_parent": "sponsor-manager",
+    "admin_menu_parent": "sponsor_manager",
     "show_in_admin_bar": false,
     "show_in_nav_menus": false,
     "show_in_rest": true,
