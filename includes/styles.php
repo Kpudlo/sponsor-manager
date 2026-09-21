@@ -259,7 +259,7 @@ add_action( 'enqueue_block_editor_assets', 'sponsor_manager_enqueue_global_style
 function sponsor_manager_enqueue_global_styles() {
 	$css = ':root{' . sponsor_manager_styles_to_css( sponsor_manager_get_global_styles() ) . ';}';
 
-	wp_register_style( 'sponsor-manager-global', false, array(), '1.3.1' );
+	wp_register_style( 'sponsor-manager-global', false, array(), '1.3.2' );
 	wp_enqueue_style( 'sponsor-manager-global' );
 	wp_add_inline_style( 'sponsor-manager-global', $css );
 }
@@ -309,7 +309,7 @@ function sponsor_manager_enqueue_styles_tab_assets( $hook ) {
 			'sponsor-manager-grid',
 			SPONSOR_MANAGER_URL . 'build/sponsor-grid/style-index.css',
 			array(),
-			'1.3.1'
+			'1.3.2'
 		);
 	}
 

@@ -26,7 +26,6 @@ $wrapper_attrs = get_block_wrapper_attributes(
 );
 ?>
 <div <?php echo $wrapper_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-	<h3 class="sponsor-manager-sidebar__heading"><?php esc_html_e( 'Sponsored', 'sponsor-manager' ); ?></h3>
 	<div class="sponsor-manager-sidebar__list">
 		<?php foreach ( $ads as $ad ) : ?>
 			<div class="sponsor-manager-sidebar__slot" data-ad-id="<?php echo esc_attr( (string) $ad['id'] ); ?>">
