@@ -37,19 +37,23 @@
 	pointer-events: none;
 }
 
-.sponsor-manager-sidebar__item {
+.wp-block-sponsor-manager-sidebar a.sponsor-manager-sidebar__item {
 	display: block;
 	position: relative;
 	aspect-ratio: 16 / 9;
 	text-decoration: none;
 	border: var(--sponsor-ad-border-width, 2px) solid var(--sponsor-ad-border-color, currentColor);
+	border-color: var(--sponsor-ad-border-color, currentColor);
 	border-radius: var(--sponsor-ad-radius, 6px);
 	overflow: hidden;
 	box-shadow: var(--sponsor-ad-shadow, 2px 2px 0 currentColor);
 	transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.sponsor-manager-sidebar__item:hover {
+.wp-block-sponsor-manager-sidebar a.sponsor-manager-sidebar__item:hover,
+.wp-block-sponsor-manager-sidebar a.sponsor-manager-sidebar__item:focus {
+	text-decoration: none;
+	border-color: var(--sponsor-ad-border-color, currentColor);
 	transform: var(--sponsor-ad-hover-shift, translate(-1px, -1px));
 	box-shadow: var(--sponsor-ad-shadow-hover, 3px 3px 0 currentColor);
 }

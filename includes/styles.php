@@ -259,7 +259,7 @@ add_action( 'enqueue_block_editor_assets', 'sponsor_manager_enqueue_global_style
 function sponsor_manager_enqueue_global_styles() {
 	$css = ':root{' . sponsor_manager_styles_to_css( sponsor_manager_get_global_styles() ) . ';}';
 
-	wp_register_style( 'sponsor-manager-global', false, array(), '1.2.0' );
+	wp_register_style( 'sponsor-manager-global', false, array(), '1.3.1' );
 	wp_enqueue_style( 'sponsor-manager-global' );
 	wp_add_inline_style( 'sponsor-manager-global', $css );
 }
@@ -309,7 +309,7 @@ function sponsor_manager_enqueue_styles_tab_assets( $hook ) {
 			'sponsor-manager-grid',
 			SPONSOR_MANAGER_URL . 'build/sponsor-grid/style-index.css',
 			array(),
-			'1.2.0'
+			'1.3.1'
 		);
 	}
 
@@ -487,7 +487,7 @@ function sponsor_manager_render_styles_tab() {
 		<div class="sponsor-manager-styles__preview">
 			<h2 style="margin-top:0;"><?php esc_html_e( 'Preview', 'sponsor-manager' ); ?></h2>
 			<p class="description"><?php esc_html_e( 'These styles apply to every Sponsor Grid and Sponsor Sidebar block, unless a block opts out and sets its own look.', 'sponsor-manager' ); ?></p>
-			<div id="sponsor-manager-style-preview" class="sponsor-manager-styles__preview-card" style="<?php echo esc_attr( trim( sponsor_manager_theme_palette_css() . ';' . sponsor_manager_styles_to_css( $styles, true ), ';' ) ); ?>">
+			<div id="sponsor-manager-style-preview" class="sponsor-manager-styles__preview-card wp-block-sponsor-manager-grid sponsor-manager-grid" style="<?php echo esc_attr( trim( sponsor_manager_theme_palette_css() . ';' . sponsor_manager_styles_to_css( $styles, true ), ';' ) ); ?>">
 				<a href="#" class="sponsor-manager-grid__item" onclick="return false;">
 					<span class="sponsor-manager-grid__item-fallback"><?php esc_html_e( 'Sample sponsor ad', 'sponsor-manager' ); ?></span>
 				</a>
