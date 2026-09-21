@@ -23,6 +23,7 @@ require_once SPONSOR_MANAGER_PATH . 'includes/block-helpers.php';
 require_once SPONSOR_MANAGER_PATH . 'includes/blocks.php';
 require_once SPONSOR_MANAGER_PATH . 'includes/styles.php';
 require_once SPONSOR_MANAGER_PATH . 'includes/updater.php';
+require_once SPONSOR_MANAGER_PATH . 'includes/dashboard.php';
 
 add_action( 'after_setup_theme', 'sponsor_manager_register_image_sizes' );
 function sponsor_manager_register_image_sizes() {
@@ -90,6 +91,20 @@ add_filter( 'acf/settings/load_json', function ( $paths ) {
 add_filter( 'acf/settings/save_json', function ( $path ) {
 	return __DIR__ . '/acf-json';
 } );
+
+add_filter( 'use_block_editor_for_post_type', function ( $use, $post_type ) {
+	if ( 'sponsor_ad' === $post_type ) {
+		return false;
+	}
+	return $use;
+}, 10, 2 );
+
+add_filter( 'hidden_meta_boxes', function ( $hidden, $screen ) {
+	if ( $screen && isset( $screen->id ) && 'sponsor_ad' === $screen->id ) {
+		$hidden = array_values( array_diff( (array) $hidden, array( 'acf-group_sponsor_manager_booking' ) ) );
+	}
+	return $hidden;
+}, 10, 2 );
 
 
 add_action( 'init', 'sponsor_manager_ensure_placement_terms', 21 );
@@ -282,6 +297,24 @@ add_action( 'init', function () {
 }, 999 );
 
 
+/**
+ * Click-through URL for an ad. Prefers the ACF Sponsor URL field, then legacy meta.
+ *
+ * @param int $post_id
+ * @return string
+ */
+function sponsor_manager_get_ad_url( $post_id ) {
+	$url = get_post_meta( $post_id, 'sponsor_url', true );
+	if ( empty( $url ) ) {
+		$url = get_post_meta( $post_id, 'ad_link', true );
+	}
+	if ( empty( $url ) ) {
+		$url = get_post_meta( $post_id, 'link', true );
+	}
+
+	return is_string( $url ) ? $url : '';
+}
+
 function sponsor_manager_get_ads( $placement_slug, $args = array() ) {
 	$args = wp_parse_args( $args, array(
 		'category_id' => 0, // 0 = auto-detect from the current queried post; array|int to override.
@@ -342,10 +375,7 @@ function sponsor_manager_get_ads( $placement_slug, $args = array() ) {
 		$priority = (int) get_post_meta( $post->ID, 'sponsor_priority', true );
 		$priority = $priority > 0 ? $priority : 10;
 
-		$link = get_post_meta( $post->ID, 'ad_link', true );
-		if ( empty( $link ) ) {
-			$link = get_post_meta( $post->ID, 'link', true );
-		}
+		$link = sponsor_manager_get_ad_url( $post->ID );
 
 		$img_url = get_the_post_thumbnail_url( $post->ID, 'sponsor-ad' );
 		if ( empty( $img_url ) ) {
@@ -519,8 +549,8 @@ function sponsor_manager_render_dashboard_widget() {
 		foreach ( $expired as $ad ) {
 			printf(
 				'<li><a href="%s">%s</a> — ended %s</li>',
-				esc_url( get_edit_post_link( $ad->ID ) ),
-				esc_html( get_post_meta( $ad->ID, 'sponsor_name', true ) ?: get_the_title( $ad ) ),
+				esc_url( sponsor_manager_dashboard_url( array( 'tab' => 'ads', 'ad' => $ad->ID ) ) ),
+				esc_html( sponsor_manager_format_booking_label( $ad ) ),
 				esc_html( date_i18n( 'M j, Y', strtotime( get_post_meta( $ad->ID, 'sponsor_end_date', true ) ) ) )
 			);
 		}
@@ -532,8 +562,8 @@ function sponsor_manager_render_dashboard_widget() {
 		foreach ( $expiring as $ad ) {
 			printf(
 				'<li><a href="%s">%s</a> — ends %s</li>',
-				esc_url( get_edit_post_link( $ad->ID ) ),
-				esc_html( get_post_meta( $ad->ID, 'sponsor_name', true ) ?: get_the_title( $ad ) ),
+				esc_url( sponsor_manager_dashboard_url( array( 'tab' => 'ads', 'ad' => $ad->ID ) ) ),
+				esc_html( sponsor_manager_format_booking_label( $ad ) ),
 				esc_html( date_i18n( 'M j, Y', strtotime( get_post_meta( $ad->ID, 'sponsor_end_date', true ) ) ) )
 			);
 		}
@@ -563,8 +593,7 @@ add_action( 'admin_menu', function () {
 		'dashicons-megaphone',
 		25
 	);
-	// add_menu_page() auto-adds a first submenu labeled after the page title ("Sponsor Manager");
-	// re-declaring it here with the same slug overrides just that label to "Dashboard".
+
 	add_submenu_page(
 		'sponsor_manager',
 		'Sponsor Manager',
@@ -618,18 +647,21 @@ function sponsor_manager_get_dashboard_stats() {
 
 function sponsor_manager_render_dashboard_page() {
 	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'overview';
-	if ( ! in_array( $tab, array( 'overview', 'styles', 'how-to-use' ), true ) ) {
+	if ( ! in_array( $tab, array( 'overview', 'ads', 'placements', 'styles', 'how-to-use' ), true ) ) {
 		$tab = 'overview';
 	}
 	$base_url = admin_url( 'admin.php?page=sponsor_manager' );
 	$tabs     = array(
-		'overview'   => __( 'Overview', 'sponsor-manager' ),
-		'styles'     => __( 'Styles', 'sponsor-manager' ),
-		'how-to-use' => __( 'How to Use', 'sponsor-manager' ),
+		'overview'    => __( 'Overview', 'sponsor-manager' ),
+		'ads'         => __( 'Ads', 'sponsor-manager' ),
+		'placements'  => __( 'Placements', 'sponsor-manager' ),
+		'styles'      => __( 'Styles', 'sponsor-manager' ),
+		'how-to-use'  => __( 'How to Use', 'sponsor-manager' ),
 	);
 
 	echo '<div class="wrap">';
 	echo '<h1>Sponsor Manager</h1>';
+	sponsor_manager_render_dashboard_notices();
 
 	echo '<h2 class="nav-tab-wrapper">';
 	foreach ( $tabs as $slug => $label ) {
@@ -646,6 +678,10 @@ function sponsor_manager_render_dashboard_page() {
 		sponsor_manager_render_how_to_use_tab();
 	} elseif ( 'styles' === $tab ) {
 		sponsor_manager_render_styles_tab();
+	} elseif ( 'ads' === $tab ) {
+		sponsor_manager_render_ads_tab();
+	} elseif ( 'placements' === $tab ) {
+		sponsor_manager_render_placements_tab();
 	} else {
 		sponsor_manager_render_overview_tab();
 	}
@@ -674,6 +710,8 @@ function sponsor_manager_render_overview_tab() {
 	}
 	echo '</div>';
 
+	sponsor_manager_render_overview_actions();
+
 	echo '<h2>' . esc_html__( 'Ad Inventory', 'sponsor-manager' ) . '</h2>';
 	echo '<p>' . esc_html__( "What's booked and what's open to sell, by placement.", 'sponsor-manager' ) . '</p>';
 	sponsor_manager_render_inventory_table();
@@ -683,8 +721,8 @@ function sponsor_manager_render_how_to_use_tab() {
 	echo '<div style="max-width:760px;margin-top:20px;">';
 	echo '<h2>' . esc_html__( 'How Sponsor Manager Works', 'sponsor-manager' ) . '</h2>';
 	echo '<ol style="list-style:decimal;margin-left:1.2em;">
-		<li><strong>Create a Sponsor Ad</strong> under Sponsor Manager → Add New Ad. Set the sponsor name, ad image (featured image), and destination link.</li>
-		<li><strong>Assign a Placement</strong> from Sponsor Manager → Placements. A specific placement (for example Home - Default) also includes ads assigned to <em>Everywhere</em>. Use Everywhere for ads that should appear in every block.</li>
+		<li><strong>Create a Sponsor Ad</strong> from the Ads tab (or Overview → Add New Ad). Set the ad name, company, image, Sponsor URL, and placements.</li>
+		<li><strong>Create a Placement</strong> from the Placements tab. A specific placement also includes ads assigned to <em>Everywhere</em>. Use Everywhere for ads that should appear in every block.</li>
 		<li><strong>Schedule it.</strong> Leave the start date blank to go live immediately, and the end date blank to run indefinitely. The ad moves through Scheduled → Active → Expired automatically based on today\'s date — no manual cleanup required.</li>
 		<li><strong>Set a priority</strong> to control ordering when a placement has more than one active sponsor; higher numbers are shown first (and more often), with random rotation among ties.</li>
 		<li><strong>Target by category</strong> (optional) by assigning post categories to the ad, the same as you would a normal post — it will then only serve on single posts/pages within those categories. Leave it uncategorized to serve everywhere.</li>
@@ -694,8 +732,8 @@ function sponsor_manager_render_how_to_use_tab() {
 	</ol>';
 	echo '<h2>' . esc_html__( 'Where to Check Status', 'sponsor-manager' ) . '</h2>';
 	echo '<ul style="list-style:disc;margin-left:1.2em;">
-		<li>The <strong>Overview</strong> tab shows current totals and what\'s open to sell, by placement.</li>
-		<li>The <strong>Status</strong> column on the Sponsor Ads list shows Active / Scheduled / Expired / Paused / Draft at a glance.</li>
+		<li>The <strong>Overview</strong> tab shows current totals and what\'s open to sell, by placement. Use Ads and Placements to create or edit without leaving the dashboard.</li>
+		<li>The <strong>Ads</strong> tab lists each ad name next to its company, status, and run dates.</li>
 		<li>The dashboard widget ("Sponsor Manager — Needs Attention") flags anything expiring within 7 days, or still published past its end date.</li>
 		<li>Plugin updates come from GitHub Releases. When a new version is published, WordPress will offer it on the Plugins screen like any other plugin.</li>
 	</ul>';
@@ -736,11 +774,10 @@ function sponsor_manager_render_inventory_table() {
 				if ( $end && $end < $today ) {
 					continue; // already expired, not occupying the slot
 				}
-				$sponsor = get_post_meta( $post->ID, 'sponsor_name', true ) ?: get_the_title( $post );
-				$rows[]  = sprintf(
+				$rows[] = sprintf(
 					'<a href="%s">%s</a>%s',
-					esc_url( get_edit_post_link( $post->ID ) ),
-					esc_html( $sponsor ),
+					esc_url( sponsor_manager_dashboard_url( array( 'tab' => 'ads', 'ad' => $post->ID ) ) ),
+					esc_html( sponsor_manager_format_booking_label( $post ) ),
 					$end ? ' (through ' . esc_html( date_i18n( 'M j, Y', strtotime( $end ) ) ) . ')' : ' (no end date)'
 				);
 				if ( ! $end ) {
@@ -759,7 +796,8 @@ function sponsor_manager_render_inventory_table() {
 			}
 
 			printf(
-				'<tr><td>%s</td><td>%s</td><td>%s</td></tr>',
+				'<tr><td><a href="%s">%s</a></td><td>%s</td><td>%s</td></tr>',
+				esc_url( sponsor_manager_dashboard_url( array( 'tab' => 'placements', 'placement' => $term->term_id ) ) ),
 				esc_html( $term->name ),
 				$rows ? implode( '<br>', $rows ) : '<em>none</em>',
 				$availability

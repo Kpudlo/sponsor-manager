@@ -4,7 +4,7 @@
     "fields": [
         {
             "key": "field_sponsor_manager_name",
-            "label": "Advertiser / Sponsor Name",
+            "label": "Advertiser \/ Sponsor Name",
             "name": "sponsor_name",
             "aria-label": "",
             "type": "text",
@@ -23,6 +23,24 @@
             "append": ""
         },
         {
+            "key": "field_6ab13b4853dc4",
+            "label": "Sponsor URL",
+            "name": "sponsor_url",
+            "aria-label": "",
+            "type": "url",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "allow_in_bindings": 0,
+            "placeholder": ""
+        },
+        {
             "key": "field_sponsor_manager_start",
             "label": "Start Date",
             "name": "sponsor_start_date",
@@ -38,7 +56,8 @@
             },
             "display_format": "F j, Y",
             "return_format": "Ymd",
-            "first_day": 1
+            "first_day": 1,
+            "default_to_current_date": 0
         },
         {
             "key": "field_sponsor_manager_end",
@@ -56,7 +75,8 @@
             },
             "display_format": "F j, Y",
             "return_format": "Ymd",
-            "first_day": 1
+            "first_day": 1,
+            "default_to_current_date": 0
         },
         {
             "key": "field_sponsor_manager_priority",
@@ -64,7 +84,7 @@
             "name": "sponsor_priority",
             "aria-label": "",
             "type": "number",
-            "instructions": "Higher number = shown first / more often when a placement has more than one active sponsor.",
+            "instructions": "Higher number = shown first \/ more often when a placement has more than one active sponsor.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -111,12 +131,16 @@
         ]
     ],
     "menu_order": 0,
-    "position": "normal",
-    "style": "default",
+    "position": "acf_after_title",
+    "style": "seamless",
     "label_placement": "top",
     "instruction_placement": "label",
     "hide_on_screen": "",
     "active": true,
     "description": "",
-    "show_in_rest": 0
+    "show_in_rest": 0,
+    "display_title": "",
+    "allow_ai_access": false,
+    "ai_description": "",
+    "modified": 1790000406
 }
