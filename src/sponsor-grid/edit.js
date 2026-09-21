@@ -3,6 +3,7 @@ import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import { PanelBody, Placeholder } from '@wordpress/components';
 import ServerSideRender from '@wordpress/server-side-render';
 import PlacementControl from '../shared/placement-control';
+import StyleControls from '../shared/style-controls';
 import metadata from './block.json';
 
 export default function Edit( { attributes, setAttributes } ) {
@@ -18,6 +19,10 @@ export default function Edit( { attributes, setAttributes } ) {
 						onChange={ ( value ) => setAttributes( { placement: value } ) }
 					/>
 				</PanelBody>
+				<StyleControls
+					attributes={ attributes }
+					setAttributes={ setAttributes }
+				/>
 			</InspectorControls>
 
 			{ ! placement ? (

@@ -21,6 +21,7 @@ if ( empty( $ads ) ) {
 $wrapper_attrs = get_block_wrapper_attributes(
 	array(
 		'class' => 'sponsor-manager-sidebar',
+		'style' => sponsor_manager_get_block_style_attribute( $attributes ),
 	)
 );
 ?>

@@ -42,16 +42,16 @@
 	position: relative;
 	aspect-ratio: 16 / 9;
 	text-decoration: none;
-	border: 2px solid currentColor;
-	border-radius: 6px;
+	border: var(--sponsor-ad-border-width, 2px) solid var(--sponsor-ad-border-color, currentColor);
+	border-radius: var(--sponsor-ad-radius, 6px);
 	overflow: hidden;
-	box-shadow: 2px 2px 0 currentColor;
+	box-shadow: var(--sponsor-ad-shadow, 2px 2px 0 currentColor);
 	transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sponsor-manager-sidebar__item:hover {
-	transform: translate(-1px, -1px);
-	box-shadow: 3px 3px 0 currentColor;
+	transform: var(--sponsor-ad-hover-shift, translate(-1px, -1px));
+	box-shadow: var(--sponsor-ad-shadow-hover, 3px 3px 0 currentColor);
 }
 
 .sponsor-manager-sidebar__item-image {

@@ -12,10 +12,54 @@
 		"placement": {
 			"type": "string",
 			"default": ""
+		},
+		"useGlobalStyles": {
+			"type": "boolean",
+			"default": true
+		},
+		"borderRadius": {
+			"type": "number",
+			"default": 6
+		},
+		"borderWidth": {
+			"type": "number",
+			"default": 2
+		},
+		"showShadow": {
+			"type": "boolean",
+			"default": true
+		},
+		"borderColor": {
+			"type": "string",
+			"default": ""
+		},
+		"shadowColor": {
+			"type": "string",
+			"default": ""
+		},
+		"shadowOffsetX": {
+			"type": "number",
+			"default": 2
+		},
+		"shadowOffsetY": {
+			"type": "number",
+			"default": 2
+		},
+		"shadowBlur": {
+			"type": "number",
+			"default": 0
+		},
+		"shadowSpread": {
+			"type": "number",
+			"default": 0
 		}
 	},
 	"supports": {
-		"html": false
+		"html": false,
+		"spacing": {
+			"margin": true,
+			"padding": true
+		}
 	},
 	"textdomain": "sponsor-manager",
 	"editorScript": "file:./index.js",

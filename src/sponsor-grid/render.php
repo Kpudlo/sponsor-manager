@@ -24,9 +24,10 @@ $can_rotate = count( $all_ads ) > $slot_count;
 
 $wrapper_attrs = get_block_wrapper_attributes(
 	array(
-		'class'                   => 'sponsor-manager-grid' . ( $can_rotate ? ' sponsor-manager-grid--rotating' : '' ),
-		'data-sponsor-rotate'     => $can_rotate ? '1' : '0',
-		'data-sponsor-initial-ms' => '60000',
+		'class'                    => 'sponsor-manager-grid' . ( $can_rotate ? ' sponsor-manager-grid--rotating' : '' ),
+		'style'                    => sponsor_manager_get_block_style_attribute( $attributes ),
+		'data-sponsor-rotate'      => $can_rotate ? '1' : '0',
+		'data-sponsor-initial-ms'  => '60000',
 		'data-sponsor-interval-ms' => '60000',
 	)
 );

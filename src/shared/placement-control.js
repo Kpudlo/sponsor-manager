@@ -44,10 +44,17 @@ export default function PlacementControl( { value, onChange } ) {
 			value={ value }
 			options={ options }
 			onChange={ onChange }
-			help={ __(
-				'Only active ads assigned to this placement will appear.',
-				'sponsor-manager'
-			) }
+			help={
+				[ 'everywhere', 'all' ].includes( value )
+					? __(
+							'Shows ads assigned to Everywhere.',
+							'sponsor-manager'
+					  )
+					: __(
+							'Shows ads assigned to this placement plus ads assigned to Everywhere.',
+							'sponsor-manager'
+					  )
+			}
 		/>
 	);
 }

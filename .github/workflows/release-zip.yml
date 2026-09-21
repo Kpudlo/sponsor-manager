@@ -1,0 +1,32 @@
+name: Attach plugin zip
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Build installable plugin zip
+        run: |
+          mkdir -p /tmp/dist
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='.DS_Store' \
+            ./ /tmp/dist/sponsor-manager/
+          cd /tmp/dist
+          zip -r sponsor-manager.zip sponsor-manager
+
+      - name: Upload zip to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/dist/sponsor-manager.zip

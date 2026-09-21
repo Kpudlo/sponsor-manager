@@ -6,7 +6,8 @@
  * Author URI: https://bemistech.com
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 1.1.0
+ * Version: 1.2.0
+ * Update URI: https://github.com/Kpudlo/sponsor-manager
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -14,11 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'SPONSOR_MANAGER_LEGACY_PAUSE_META', 'expired' ); // Repurposed legacy field: manual pause override.
+define( 'SPONSOR_MANAGER_EVERYWHERE_SLUG', 'everywhere' );
 define( 'SPONSOR_MANAGER_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SPONSOR_MANAGER_URL', plugin_dir_url( __FILE__ ) );
 
 require_once SPONSOR_MANAGER_PATH . 'includes/block-helpers.php';
 require_once SPONSOR_MANAGER_PATH . 'includes/blocks.php';
+require_once SPONSOR_MANAGER_PATH . 'includes/styles.php';
+require_once SPONSOR_MANAGER_PATH . 'includes/updater.php';
 
 add_action( 'after_setup_theme', 'sponsor_manager_register_image_sizes' );
 function sponsor_manager_register_image_sizes() {
@@ -118,6 +122,86 @@ function sponsor_manager_ensure_placement_terms() {
 	}
 
 	update_option( 'sponsor_manager_terms_seeded_v1', 1 );
+}
+
+add_action( 'init', 'sponsor_manager_ensure_everywhere_term', 22 );
+function sponsor_manager_ensure_everywhere_term() {
+	if ( ! taxonomy_exists( 'sponsor_placement' ) ) {
+		return;
+	}
+
+	$everywhere = get_term_by( 'slug', SPONSOR_MANAGER_EVERYWHERE_SLUG, 'sponsor_placement' );
+	if ( ! $everywhere ) {
+		$everywhere = get_term_by( 'name', 'Everywhere', 'sponsor_placement' );
+	}
+	if ( $everywhere && ! is_wp_error( $everywhere ) ) {
+		$update = array();
+		if ( 'Everywhere' !== $everywhere->name ) {
+			$update['name'] = 'Everywhere';
+		}
+		if ( SPONSOR_MANAGER_EVERYWHERE_SLUG !== $everywhere->slug ) {
+			$update['slug'] = SPONSOR_MANAGER_EVERYWHERE_SLUG;
+		}
+		if ( $update ) {
+			wp_update_term( $everywhere->term_id, 'sponsor_placement', $update );
+		}
+		return;
+	}
+
+	foreach ( array( 'all', 'All' ) as $legacy ) {
+		$legacy_term = get_term_by( 'slug', sanitize_title( $legacy ), 'sponsor_placement' );
+		if ( ! $legacy_term ) {
+			$legacy_term = get_term_by( 'name', $legacy, 'sponsor_placement' );
+		}
+		if ( $legacy_term && ! is_wp_error( $legacy_term ) ) {
+			wp_update_term(
+				$legacy_term->term_id,
+				'sponsor_placement',
+				array(
+					'name' => 'Everywhere',
+					'slug' => SPONSOR_MANAGER_EVERYWHERE_SLUG,
+				)
+			);
+			return;
+		}
+	}
+
+	wp_insert_term(
+		'Everywhere',
+		'sponsor_placement',
+		array( 'slug' => SPONSOR_MANAGER_EVERYWHERE_SLUG )
+	);
+}
+
+/**
+ * Slugs that mean "show this ad in every placement".
+ *
+ * `all` is kept so ads assigned before the rename still resolve.
+ *
+ * @return string[]
+ */
+function sponsor_manager_get_everywhere_slugs() {
+	return array( SPONSOR_MANAGER_EVERYWHERE_SLUG, 'all' );
+}
+
+/**
+ * Placement slugs to query for a block.
+ *
+ * A specific placement also includes Everywhere ads. Selecting Everywhere
+ * itself only returns the catch-all ads.
+ *
+ * @param string $placement_slug
+ * @return string[]
+ */
+function sponsor_manager_get_placement_query_slugs( $placement_slug ) {
+	$slug       = sanitize_title( $placement_slug );
+	$everywhere = sponsor_manager_get_everywhere_slugs();
+
+	if ( ! $slug || in_array( $slug, $everywhere, true ) ) {
+		return $everywhere;
+	}
+
+	return array_values( array_unique( array_merge( array( $slug ), $everywhere ) ) );
 }
 
 // Cosmetic relabel only — the legacy "expired" checkbox becomes the manual pause switch.
@@ -228,7 +312,7 @@ function sponsor_manager_get_ads( $placement_slug, $args = array() ) {
 			array(
 				'taxonomy' => 'sponsor_placement',
 				'field'    => 'slug',
-				'terms'    => $placement_slug,
+				'terms'    => sponsor_manager_get_placement_query_slugs( $placement_slug ),
 			),
 		),
 	) );
@@ -533,29 +617,35 @@ function sponsor_manager_get_dashboard_stats() {
 }
 
 function sponsor_manager_render_dashboard_page() {
-	$tab      = ( isset( $_GET['tab'] ) && 'how-to-use' === $_GET['tab'] ) ? 'how-to-use' : 'overview';
+	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'overview';
+	if ( ! in_array( $tab, array( 'overview', 'styles', 'how-to-use' ), true ) ) {
+		$tab = 'overview';
+	}
 	$base_url = admin_url( 'admin.php?page=sponsor_manager' );
+	$tabs     = array(
+		'overview'   => __( 'Overview', 'sponsor-manager' ),
+		'styles'     => __( 'Styles', 'sponsor-manager' ),
+		'how-to-use' => __( 'How to Use', 'sponsor-manager' ),
+	);
 
 	echo '<div class="wrap">';
 	echo '<h1>Sponsor Manager</h1>';
 
-	printf( '<h2 class="nav-tab-wrapper">' );
-	printf(
-		'<a href="%1$s" class="nav-tab %2$s">%3$s</a>',
-		esc_url( $base_url ),
-		'overview' === $tab ? 'nav-tab-active' : '',
-		esc_html__( 'Overview', 'sponsor-manager' )
-	);
-	printf(
-		'<a href="%1$s" class="nav-tab %2$s">%3$s</a>',
-		esc_url( add_query_arg( 'tab', 'how-to-use', $base_url ) ),
-		'how-to-use' === $tab ? 'nav-tab-active' : '',
-		esc_html__( 'How to Use', 'sponsor-manager' )
-	);
+	echo '<h2 class="nav-tab-wrapper">';
+	foreach ( $tabs as $slug => $label ) {
+		printf(
+			'<a href="%1$s" class="nav-tab %2$s">%3$s</a>',
+			esc_url( 'overview' === $slug ? $base_url : add_query_arg( 'tab', $slug, $base_url ) ),
+			$tab === $slug ? 'nav-tab-active' : '',
+			esc_html( $label )
+		);
+	}
 	echo '</h2>';
 
 	if ( 'how-to-use' === $tab ) {
 		sponsor_manager_render_how_to_use_tab();
+	} elseif ( 'styles' === $tab ) {
+		sponsor_manager_render_styles_tab();
 	} else {
 		sponsor_manager_render_overview_tab();
 	}
@@ -594,18 +684,20 @@ function sponsor_manager_render_how_to_use_tab() {
 	echo '<h2>' . esc_html__( 'How Sponsor Manager Works', 'sponsor-manager' ) . '</h2>';
 	echo '<ol style="list-style:decimal;margin-left:1.2em;">
 		<li><strong>Create a Sponsor Ad</strong> under Sponsor Manager → Add New Ad. Set the sponsor name, ad image (featured image), and destination link.</li>
-		<li><strong>Assign a Placement</strong> (sidebar, mega menu, landing page, single post/page) from Sponsor Manager → Placements — this controls where the ad is eligible to appear.</li>
+		<li><strong>Assign a Placement</strong> from Sponsor Manager → Placements. A specific placement (for example Home - Default) also includes ads assigned to <em>Everywhere</em>. Use Everywhere for ads that should appear in every block.</li>
 		<li><strong>Schedule it.</strong> Leave the start date blank to go live immediately, and the end date blank to run indefinitely. The ad moves through Scheduled → Active → Expired automatically based on today\'s date — no manual cleanup required.</li>
 		<li><strong>Set a priority</strong> to control ordering when a placement has more than one active sponsor; higher numbers are shown first (and more often), with random rotation among ties.</li>
 		<li><strong>Target by category</strong> (optional) by assigning post categories to the ad, the same as you would a normal post — it will then only serve on single posts/pages within those categories. Leave it uncategorized to serve everywhere.</li>
 		<li><strong>Pause anytime</strong> with the "Paused (manual override)" checkbox to instantly pull an ad from rotation, regardless of its scheduled dates.</li>
 		<li><strong>Place ads on the site</strong> using the <em>Sponsor Grid</em> block (four-up horizontal grid with priority-weighted rotation) or the <em>Sponsor Sidebar</em> block (vertical stack of all active ads). Both blocks are in the block inserter under Widgets — pick a placement in the block settings.</li>
+		<li><strong>Set global styles</strong> on the Styles tab (border radius, border, shadow). Individual blocks use those defaults unless you turn on a per-block override.</li>
 	</ol>';
 	echo '<h2>' . esc_html__( 'Where to Check Status', 'sponsor-manager' ) . '</h2>';
 	echo '<ul style="list-style:disc;margin-left:1.2em;">
 		<li>The <strong>Overview</strong> tab shows current totals and what\'s open to sell, by placement.</li>
 		<li>The <strong>Status</strong> column on the Sponsor Ads list shows Active / Scheduled / Expired / Paused / Draft at a glance.</li>
 		<li>The dashboard widget ("Sponsor Manager — Needs Attention") flags anything expiring within 7 days, or still published past its end date.</li>
+		<li>Plugin updates come from GitHub Releases. When a new version is published, WordPress will offer it on the Plugins screen like any other plugin.</li>
 	</ul>';
 	echo '</div>';
 }

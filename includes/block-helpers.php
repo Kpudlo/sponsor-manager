@@ -107,6 +107,37 @@ function sponsor_manager_render_ad_markup( array $ad, $layout = 'grid' ) {
 }
 
 /**
+ * CSS custom properties for ad card radius, border, and shadow.
+ *
+ * @param array $attributes Block attributes.
+ * @return string
+ */
+function sponsor_manager_get_block_style_attribute( array $attributes ) {
+	$use_global = ! array_key_exists( 'useGlobalStyles', $attributes ) || ! empty( $attributes['useGlobalStyles'] );
+	if ( $use_global ) {
+		return '';
+	}
+
+	$globals = function_exists( 'sponsor_manager_get_global_styles' )
+		? sponsor_manager_get_global_styles()
+		: sponsor_manager_get_default_styles();
+
+	return sponsor_manager_styles_to_css(
+		array(
+			'border_radius'   => array_key_exists( 'borderRadius', $attributes ) ? $attributes['borderRadius'] : $globals['border_radius'],
+			'border_width'    => array_key_exists( 'borderWidth', $attributes ) ? $attributes['borderWidth'] : $globals['border_width'],
+			'border_color'    => $attributes['borderColor'] ?? $globals['border_color'],
+			'show_shadow'     => array_key_exists( 'showShadow', $attributes ) ? ! empty( $attributes['showShadow'] ) : $globals['show_shadow'],
+			'shadow_color'    => $attributes['shadowColor'] ?? $globals['shadow_color'],
+			'shadow_offset_x' => array_key_exists( 'shadowOffsetX', $attributes ) ? $attributes['shadowOffsetX'] : $globals['shadow_offset_x'],
+			'shadow_offset_y' => array_key_exists( 'shadowOffsetY', $attributes ) ? $attributes['shadowOffsetY'] : $globals['shadow_offset_y'],
+			'shadow_blur'     => array_key_exists( 'shadowBlur', $attributes ) ? $attributes['shadowBlur'] : $globals['shadow_blur'],
+			'shadow_spread'   => array_key_exists( 'shadowSpread', $attributes ) ? $attributes['shadowSpread'] : $globals['shadow_spread'],
+		)
+	);
+}
+
+/**
  * Strip ad data down to what the frontend rotation script needs.
  *
  * @param array $ads
