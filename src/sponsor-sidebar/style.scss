@@ -1,8 +1,7 @@
 .wp-block-sponsor-manager-sidebar.sponsor-manager-sidebar {
 	width: 100%;
-	border: 2px dashed currentColor;
-	border-radius: 8px;
-	padding: 1.25rem;
+	padding-inline: 1rem;
+	margin-top: 1rem;
 	box-sizing: border-box;
 	position: relative;
 	overflow: hidden;
@@ -24,7 +23,6 @@
 	bottom: -0.875rem;
 	left: 10%;
 	right: 10%;
-	border-bottom: 2px dashed currentColor;
 	opacity: 0.35;
 	pointer-events: none;
 }
