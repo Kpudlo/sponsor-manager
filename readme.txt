@@ -3,7 +3,7 @@ Contributors: bemistech
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,9 @@ Sponsor Manager stores sponsor ads as a custom post type, assigns them to placem
 Updates are delivered from GitHub Releases (not WordPress.org).
 
 == Changelog ==
+
+= 1.5.1 =
+* Ships Updater.php with the PSR-4 filename Linux hosts expect so the plugin can load.
 
 = 1.5.0 =
 * Replaces Sponsor Grid and Sponsor Sidebar with one Sponsors block. Choose horizontal or vertical and a maximum number of ads. Existing sidebar blocks still render and convert in the editor.

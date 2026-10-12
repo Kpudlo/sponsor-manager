@@ -53,7 +53,9 @@ class Plugin {
 		Placements::register();
 		Status::register();
 		BlockRegistrar::register();
-		Updater::register();
+		if ( is_readable( SPONSOR_MANAGER_PATH . 'includes/Updater.php' ) ) {
+			Updater::register();
+		}
 
 		Menu::register();
 		ListTable::register();
