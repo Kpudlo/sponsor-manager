@@ -7,6 +7,11 @@
 		"php": ">=7.4",
 		"yahnis-elsts/plugin-update-checker": "^5.6"
 	},
+	"autoload": {
+		"psr-4": {
+			"SponsorManager\\": "includes/"
+		}
+	},
 	"config": {
 		"optimize-autoloader": true,
 		"sort-packages": true

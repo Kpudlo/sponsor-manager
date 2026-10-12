@@ -2,21 +2,42 @@
   "$schema": "https://schemas.wp.org/trunk/block.json",
   "apiVersion": 3,
   "name": "sponsor-manager/grid",
-  "version": "1.0.0",
-  "title": "Sponsor Grid",
+  "version": "1.5.0",
+  "title": "Sponsors",
   "category": "widgets",
-  "icon": "grid-view",
-  "description": "Display up to four sponsor ads in a responsive grid with priority-weighted rotation.",
+  "icon": "megaphone",
+  "description": "Display sponsor ads horizontally or vertically. Extra ads rotate in every two minutes.",
   "keywords": [
     "sponsor",
     "ad",
     "grid",
-    "banner"
+    "banner",
+    "sidebar"
   ],
   "attributes": {
     "placement": {
       "type": "string",
       "default": ""
+    },
+    "orientation": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "default": "horizontal"
+    },
+    "maxItems": {
+      "type": "number",
+      "default": 0
+    },
+    "columns": {
+      "type": "number",
+      "default": 4
+    },
+    "rows": {
+      "type": "number",
+      "default": 1
     },
     "useGlobalStyles": {
       "type": "boolean",

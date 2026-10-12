@@ -1,9 +1,10 @@
 /**
- * Priority-weighted sponsor rotation — swaps one slot at a time after an initial delay.
+ * Rotate overflow ads every two minutes, replacing the oldest slots first.
  */
 ( function () {
-	const INITIAL_DELAY_MS = 60000;
-	const INTERVAL_MS = 60000;
+	const INITIAL_DELAY_MS = 120000;
+	const INTERVAL_MS = 120000;
+	const SWAP_MS = 350;
 
 	function weightedPick( ads, excludeIds ) {
 		const pool = ads.filter( ( ad ) => ! excludeIds.includes( ad.id ) );
@@ -43,42 +44,72 @@
 			? `<img class="sponsor-manager-grid__item-image" src="${ escapeHtml( ad.image ) }" alt="${ title }" width="16" height="9" loading="lazy" decoding="async" />`
 			: `<span class="sponsor-manager-grid__item-fallback">${ title }</span>`;
 
-		return `<a class="sponsor-manager-grid__item" href="${ link }" target="_blank" rel="noopener noreferrer sponsored">${ image }</a>`;
+		return `<a class="sponsor-manager-grid__item" href="${ link }" target="_blank" rel="noopener noreferrer sponsored">${ image }<span class="screen-reader-text">(opens in a new tab)</span></a>`;
 	}
 
-	function getVisibleIds( container ) {
+	function getSlots( container ) {
 		return Array.from(
 			container.querySelectorAll( '.sponsor-manager-grid__slot' )
-		).map( ( slot ) => parseInt( slot.dataset.adId, 10 ) );
+		);
 	}
 
-	function swapRandomSlot( container, pool ) {
-		const slots = Array.from(
-			container.querySelectorAll( '.sponsor-manager-grid__slot' )
-		);
+	function getVisibleIds( slots ) {
+		return slots.map( ( slot ) => parseInt( slot.dataset.adId, 10 ) );
+	}
+
+	function swapOldestOverflow( container, pool ) {
+		const slots = getSlots( container );
 		if ( ! slots.length ) {
 			return;
 		}
 
-		const visibleIds = getVisibleIds( container );
-		const replacement = weightedPick( pool, visibleIds );
-		if ( ! replacement ) {
+		const overflow = pool.length - slots.length;
+		if ( overflow <= 0 ) {
 			return;
 		}
 
-		const slot =
-			slots[ Math.floor( Math.random() * slots.length ) ];
-		slot.classList.add( 'is-swapping' );
+		const swapCount = Math.min( overflow, slots.length );
+		const now = Date.now();
+		const ranked = slots.slice().sort( ( a, b ) => {
+			return Number( a.dataset.shownAt || 0 ) - Number( b.dataset.shownAt || 0 );
+		} );
+		const outgoing = ranked.slice( 0, swapCount );
+		const excludeIds = getVisibleIds( slots );
+		const updates = [];
+
+		outgoing.forEach( ( slot ) => {
+			const replacement = weightedPick( pool, excludeIds );
+			if ( ! replacement ) {
+				return;
+			}
+			excludeIds.push( replacement.id );
+			updates.push( { slot, replacement } );
+			slot.classList.add( 'is-swapping' );
+		} );
+
+		if ( ! updates.length ) {
+			return;
+		}
 
 		window.setTimeout( () => {
-			slot.dataset.adId = String( replacement.id );
-			slot.innerHTML = renderAdMarkup( replacement );
-			slot.classList.remove( 'is-swapping' );
-		}, 350 );
+			updates.forEach( ( { slot, replacement } ) => {
+				slot.dataset.adId = String( replacement.id );
+				slot.dataset.shownAt = String( now );
+				slot.innerHTML = renderAdMarkup( replacement );
+				slot.classList.remove( 'is-swapping' );
+			} );
+		}, SWAP_MS );
 	}
 
 	function initRotation( container ) {
 		if ( container.dataset.sponsorRotate !== '1' ) {
+			return;
+		}
+
+		if (
+			window.matchMedia &&
+			window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches
+		) {
 			return;
 		}
 
@@ -89,9 +120,15 @@
 			return;
 		}
 
-		if ( ! Array.isArray( pool ) || pool.length <= 4 ) {
+		const slots = getSlots( container );
+		if ( ! Array.isArray( pool ) || pool.length <= slots.length ) {
 			return;
 		}
+
+		const started = Date.now();
+		slots.forEach( ( slot ) => {
+			slot.dataset.shownAt = String( started );
+		} );
 
 		const initialDelay = parseInt(
 			container.dataset.sponsorInitialMs || String( INITIAL_DELAY_MS ),
@@ -103,9 +140,9 @@
 		);
 
 		window.setTimeout( () => {
-			swapRandomSlot( container, pool );
+			swapOldestOverflow( container, pool );
 			window.setInterval( () => {
-				swapRandomSlot( container, pool );
+				swapOldestOverflow( container, pool );
 			}, interval );
 		}, initialDelay );
 	}

@@ -1,17 +1,25 @@
-.wp-block-sponsor-manager-grid.sponsor-manager-grid {
+.sponsor-manager-grid {
 	width: 100%;
 }
 
 .sponsor-manager-grid__slots {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 1rem;
 }
 
+.sponsor-manager-grid--horizontal .sponsor-manager-grid__slots {
+	grid-template-columns: repeat(var(--sponsor-grid-mobile-columns, 2), minmax(0, 1fr));
+}
+
 @media (min-width: 782px) {
-	.sponsor-manager-grid__slots {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+	.sponsor-manager-grid--horizontal .sponsor-manager-grid__slots {
+		grid-template-columns: repeat(var(--sponsor-grid-columns, 4), minmax(0, 1fr));
 	}
+}
+
+.sponsor-manager-grid--vertical .sponsor-manager-grid__slots {
+	grid-template-columns: 1fr;
+	gap: 1.75rem;
 }
 
 .sponsor-manager-grid__slot {
@@ -23,10 +31,11 @@
 	opacity: 0;
 }
 
-.wp-block-sponsor-manager-grid a.sponsor-manager-grid__item {
+.sponsor-manager-grid a.sponsor-manager-grid__item {
 	display: block;
 	position: relative;
 	aspect-ratio: 16 / 9;
+	min-height: 24px;
 	text-decoration: none;
 	border: var(--sponsor-ad-border-width, 2px) solid var(--sponsor-ad-border-color, currentColor);
 	border-color: var(--sponsor-ad-border-color, currentColor);
@@ -36,12 +45,17 @@
 	transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.wp-block-sponsor-manager-grid a.sponsor-manager-grid__item:hover,
-.wp-block-sponsor-manager-grid a.sponsor-manager-grid__item:focus {
+.sponsor-manager-grid a.sponsor-manager-grid__item:hover,
+.sponsor-manager-grid a.sponsor-manager-grid__item:focus {
 	text-decoration: none;
 	border-color: var(--sponsor-ad-border-color, currentColor);
 	transform: var(--sponsor-ad-hover-shift, translate(-1px, -1px));
 	box-shadow: var(--sponsor-ad-shadow-hover, 3px 3px 0 currentColor);
+}
+
+.sponsor-manager-grid a.sponsor-manager-grid__item:focus-visible {
+	outline: 3px solid currentColor;
+	outline-offset: 3px;
 }
 
 .sponsor-manager-grid__item-image {
@@ -63,3 +77,14 @@
 	font-weight: 600;
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.sponsor-manager-grid__slot,
+	.sponsor-manager-grid a.sponsor-manager-grid__item {
+		transition: none;
+	}
+
+	.sponsor-manager-grid a.sponsor-manager-grid__item:hover,
+	.sponsor-manager-grid a.sponsor-manager-grid__item:focus {
+		transform: none;
+	}
+}

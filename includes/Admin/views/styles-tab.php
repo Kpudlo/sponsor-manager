@@ -1,324 +1,17 @@
 <?php
 /**
- * Global ad styles — stored as an option and applied to every block by default.
+ * Styles tab form and live preview.
+ *
+ * @package SponsorManager
+ *
+ * @var array $styles Sanitized global styles.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SPONSOR_MANAGER_STYLES_OPTION', 'sponsor_manager_global_styles' );
-
-/**
- * Default look for grid/sidebar ad cards.
- *
- * @return array
- */
-function sponsor_manager_get_default_styles() {
-	return array(
-		'border_radius'   => 6,
-		'border_width'    => 2,
-		'border_color'    => '',
-		'show_shadow'     => true,
-		'shadow_color'    => '',
-		'shadow_offset_x' => 2,
-		'shadow_offset_y' => 2,
-		'shadow_blur'     => 0,
-		'shadow_spread'   => 0,
-	);
-}
-
-/**
- * Theme palette colors (theme + custom + default presets).
- *
- * @return array<int, array{name:string,slug:string,css:string,hex:string}>
- */
-function sponsor_manager_get_theme_palette() {
-	$palette = array();
-
-	if ( ! function_exists( 'wp_get_global_settings' ) ) {
-		return $palette;
-	}
-
-	$groups = wp_get_global_settings( array( 'color', 'palette' ) );
-	if ( ! is_array( $groups ) ) {
-		return $palette;
-	}
-
-	$seen = array();
-	foreach ( $groups as $origin ) {
-		if ( ! is_array( $origin ) ) {
-			continue;
-		}
-
-		// Flat list vs origin-grouped (theme/default/custom).
-		$colors = isset( $origin['color'] ) || isset( $origin['slug'] ) ? array( $origin ) : $origin;
-		foreach ( $colors as $color ) {
-			if ( ! is_array( $color ) || empty( $color['slug'] ) || empty( $color['color'] ) ) {
-				continue;
-			}
-
-			$slug = sanitize_title( $color['slug'] );
-			if ( ! $slug || isset( $seen[ $slug ] ) ) {
-				continue;
-			}
-
-			$seen[ $slug ] = true;
-			$palette[]     = array(
-				'name' => isset( $color['name'] ) ? (string) $color['name'] : $slug,
-				'slug' => $slug,
-				'css'  => 'var(--wp--preset--color--' . $slug . ')',
-				'hex'  => (string) $color['color'],
-			);
-		}
-	}
-
-	return $palette;
-}
-
-/**
- * Normalize a stored color to a safe CSS value.
- *
- * Accepts hex, rgba(), theme preset vars, and Gutenberg's var:preset|color|slug.
- *
- * @param mixed $color
- * @return string
- */
-function sponsor_manager_sanitize_color_value( $color ) {
-	$color = trim( (string) $color );
-	if ( '' === $color ) {
-		return '';
-	}
-
-	if ( preg_match( '/^var:preset\|color\|([a-z0-9\-]+)$/i', $color, $matches ) ) {
-		return 'var(--wp--preset--color--' . sanitize_title( $matches[1] ) . ')';
-	}
-
-	if ( preg_match( '/^var\(--wp--preset--color--[a-z0-9\-]+\)$/i', $color ) ) {
-		return $color;
-	}
-
-	if ( sanitize_hex_color( $color ) ) {
-		return $color;
-	}
-
-	if ( preg_match( '/^#([0-9a-fA-F]{4}|[0-9a-fA-F]{8})$/', $color ) ) {
-		return $color;
-	}
-
-	if ( preg_match( '/^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+(?:\s*,\s*[\d.]+)?\s*\)$/', $color ) ) {
-		return $color;
-	}
-
-	return '';
-}
-
-/**
- * @param string $color
- * @param string $fallback
- * @return string
- */
-function sponsor_manager_color_to_css( $color, $fallback = 'currentColor' ) {
-	$color = sponsor_manager_sanitize_color_value( $color );
-	return $color ? $color : $fallback;
-}
-
-/**
- * Sanitized global styles merged with defaults.
- *
- * @return array
- */
-function sponsor_manager_get_global_styles() {
-	$saved = get_option( SPONSOR_MANAGER_STYLES_OPTION, array() );
-	if ( ! is_array( $saved ) ) {
-		$saved = array();
-	}
-
-	return sponsor_manager_sanitize_styles( wp_parse_args( $saved, sponsor_manager_get_default_styles() ) );
-}
-
-/**
- * @param array $input
- * @return array
- */
-function sponsor_manager_sanitize_styles( $input ) {
-	$defaults = sponsor_manager_get_default_styles();
-	$input    = is_array( $input ) ? $input : array();
-
-	return array(
-		'border_radius'   => max( 0, min( 32, (int) ( $input['border_radius'] ?? $defaults['border_radius'] ) ) ),
-		'border_width'    => max( 0, min( 8, (int) ( $input['border_width'] ?? $defaults['border_width'] ) ) ),
-		'border_color'    => sponsor_manager_sanitize_color_value( $input['border_color'] ?? '' ),
-		'show_shadow'     => ! empty( $input['show_shadow'] ),
-		'shadow_color'    => sponsor_manager_sanitize_color_value( $input['shadow_color'] ?? '' ),
-		'shadow_offset_x' => max( -40, min( 40, (int) ( $input['shadow_offset_x'] ?? $defaults['shadow_offset_x'] ) ) ),
-		'shadow_offset_y' => max( -40, min( 40, (int) ( $input['shadow_offset_y'] ?? $defaults['shadow_offset_y'] ) ) ),
-		'shadow_blur'     => max( 0, min( 60, (int) ( $input['shadow_blur'] ?? $defaults['shadow_blur'] ) ) ),
-		'shadow_spread'   => max( -20, min( 40, (int) ( $input['shadow_spread'] ?? $defaults['shadow_spread'] ) ) ),
-	);
-}
-
-/**
- * Build the CSS custom-property string for a style set.
- *
- * @param array $styles
- * @return string
- */
-function sponsor_manager_build_shadow_css( array $styles, $hover = false, $for_preview = false ) {
-	if ( empty( $styles['show_shadow'] ) ) {
-		return 'none';
-	}
-
-	$x = (int) $styles['shadow_offset_x'];
-	$y = (int) $styles['shadow_offset_y'];
-	if ( $hover ) {
-		$x += ( $x >= 0 ) ? 1 : -1;
-		$y += ( $y >= 0 ) ? 1 : -1;
-	}
-
-	$color = $for_preview
-		? sponsor_manager_preview_color( $styles['shadow_color'] ?? '' )
-		: sponsor_manager_color_to_css( $styles['shadow_color'] ?? '' );
-
-	return sprintf(
-		'%dpx %dpx %dpx %dpx %s',
-		$x,
-		$y,
-		(int) $styles['shadow_blur'],
-		(int) $styles['shadow_spread'],
-		$color
-	);
-}
-
-/**
- * Resolve a stored color to a concrete CSS value for the admin preview.
- * Theme preset vars are not available in wp-admin, so use the palette hex.
- *
- * @param string $color
- * @return string
- */
-function sponsor_manager_preview_color( $color ) {
-	$color = sponsor_manager_sanitize_color_value( $color );
-	if ( '' === $color ) {
-		return 'currentColor';
-	}
-
-	foreach ( sponsor_manager_get_theme_palette() as $item ) {
-		if ( $color === $item['css'] && ! empty( $item['hex'] ) ) {
-			return $item['hex'];
-		}
-	}
-
-	return $color;
-}
-
-/**
- * Theme palette custom properties for the Styles tab preview.
- *
- * @return string
- */
-function sponsor_manager_theme_palette_css() {
-	$parts = array();
-	foreach ( sponsor_manager_get_theme_palette() as $item ) {
-		if ( empty( $item['slug'] ) || empty( $item['hex'] ) ) {
-			continue;
-		}
-		$parts[] = '--wp--preset--color--' . $item['slug'] . ':' . $item['hex'];
-	}
-
-	return implode( ';', $parts );
-}
-
-function sponsor_manager_styles_to_css( array $styles, $for_preview = false ) {
-	$styles = sponsor_manager_sanitize_styles( $styles );
-
-	$shift_x = (int) $styles['shadow_offset_x'] >= 0 ? -1 : 1;
-	$shift_y = (int) $styles['shadow_offset_y'] >= 0 ? -1 : 1;
-
-	$vars = array(
-		'--sponsor-ad-radius'       => $styles['border_radius'] . 'px',
-		'--sponsor-ad-border-width' => $styles['border_width'] . 'px',
-		'--sponsor-ad-border-color' => $for_preview
-			? sponsor_manager_preview_color( $styles['border_color'] )
-			: sponsor_manager_color_to_css( $styles['border_color'] ),
-		'--sponsor-ad-shadow'       => sponsor_manager_build_shadow_css( $styles, false, $for_preview ),
-		'--sponsor-ad-shadow-hover' => sponsor_manager_build_shadow_css( $styles, true, $for_preview ),
-		'--sponsor-ad-hover-shift'  => $styles['show_shadow'] ? sprintf( 'translate(%dpx, %dpx)', $shift_x, $shift_y ) : 'none',
-	);
-
-	$parts = array();
-	foreach ( $vars as $property => $value ) {
-		$parts[] = $property . ':' . $value;
-	}
-
-	return implode( ';', $parts );
-}
-
-add_action( 'wp_enqueue_scripts', 'sponsor_manager_enqueue_global_styles', 20 );
-add_action( 'enqueue_block_editor_assets', 'sponsor_manager_enqueue_global_styles', 20 );
-function sponsor_manager_enqueue_global_styles() {
-	$css = ':root{' . sponsor_manager_styles_to_css( sponsor_manager_get_global_styles() ) . ';}';
-
-	wp_register_style( 'sponsor-manager-global', false, array(), '1.3.3' );
-	wp_enqueue_style( 'sponsor-manager-global' );
-	wp_add_inline_style( 'sponsor-manager-global', $css );
-}
-
-add_action( 'admin_init', 'sponsor_manager_handle_styles_save' );
-function sponsor_manager_handle_styles_save() {
-	if ( ! isset( $_POST['sponsor_manager_save_styles'] ) ) {
-		return;
-	}
-
-	if ( ! current_user_can( 'edit_posts' ) ) {
-		wp_die( esc_html__( 'Sorry, you are not allowed to manage sponsor styles.', 'sponsor-manager' ) );
-	}
-
-	check_admin_referer( 'sponsor_manager_save_styles' );
-
-	$input = isset( $_POST['sponsor_styles'] ) ? wp_unslash( $_POST['sponsor_styles'] ) : array();
-	update_option( SPONSOR_MANAGER_STYLES_OPTION, sponsor_manager_sanitize_styles( $input ) );
-
-	wp_safe_redirect(
-		add_query_arg(
-			array(
-				'page'              => 'sponsor_manager',
-				'tab'               => 'styles',
-				'settings-updated'  => 'true',
-			),
-			admin_url( 'admin.php' )
-		)
-	);
-	exit;
-}
-
-add_action( 'admin_enqueue_scripts', 'sponsor_manager_enqueue_styles_tab_assets' );
-function sponsor_manager_enqueue_styles_tab_assets( $hook ) {
-	if ( 'toplevel_page_sponsor_manager' !== $hook ) {
-		return;
-	}
-
-	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
-	if ( 'styles' !== $tab ) {
-		return;
-	}
-
-	$style_path = SPONSOR_MANAGER_PATH . 'build/sponsor-grid/style-index.css';
-	if ( file_exists( $style_path ) ) {
-		wp_enqueue_style(
-			'sponsor-manager-grid',
-			SPONSOR_MANAGER_URL . 'build/sponsor-grid/style-index.css',
-			array(),
-			'1.3.3'
-		);
-	}
-
-	sponsor_manager_enqueue_global_styles();
-}
-
-function sponsor_manager_render_styles_tab() {
-	$styles = sponsor_manager_get_global_styles();
-	if ( isset( $_GET['settings-updated'] ) ) {
+	if ( isset( $_GET['settings-updated'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice after redirect.
 		echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Global styles saved.', 'sponsor-manager' ) . '</p></div>';
 	}
 	?>
@@ -441,7 +134,7 @@ function sponsor_manager_render_styles_tab() {
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Border color', 'sponsor-manager' ); ?></th>
 					<td>
-						<?php sponsor_manager_render_color_control( 'sponsor-style-border-color', 'sponsor_styles[border_color]', $styles['border_color'] ); ?>
+						<?php \SponsorManager\Admin\StylesPage::color_control( 'sponsor-style-border-color', 'sponsor_styles[border_color]', $styles['border_color'] ); ?>
 						<p class="description"><?php esc_html_e( 'Theme colors show a swatch. Choose Custom to enter your own, or Inherit for the current text color.', 'sponsor-manager' ); ?></p>
 					</td>
 				</tr>
@@ -476,7 +169,7 @@ function sponsor_manager_render_styles_tab() {
 								</div>
 							</div>
 							<p style="margin:16px 0 8px;"><strong><?php esc_html_e( 'Shadow color', 'sponsor-manager' ); ?></strong></p>
-							<?php sponsor_manager_render_color_control( 'sponsor-style-shadow-color', 'sponsor_styles[shadow_color]', $styles['shadow_color'] ); ?>
+							<?php \SponsorManager\Admin\StylesPage::color_control( 'sponsor-style-shadow-color', 'sponsor_styles[shadow_color]', $styles['shadow_color'] ); ?>
 						</div>
 					</td>
 				</tr>
@@ -486,8 +179,8 @@ function sponsor_manager_render_styles_tab() {
 
 		<div class="sponsor-manager-styles__preview">
 			<h2 style="margin-top:0;"><?php esc_html_e( 'Preview', 'sponsor-manager' ); ?></h2>
-			<p class="description"><?php esc_html_e( 'These styles apply to every Sponsor Grid and Sponsor Sidebar block, unless a block opts out and sets its own look.', 'sponsor-manager' ); ?></p>
-			<div id="sponsor-manager-style-preview" class="sponsor-manager-styles__preview-card wp-block-sponsor-manager-grid sponsor-manager-grid" style="<?php echo esc_attr( trim( sponsor_manager_theme_palette_css() . ';' . sponsor_manager_styles_to_css( $styles, true ), ';' ) ); ?>">
+			<p class="description"><?php esc_html_e( 'These styles apply to every Sponsors block, unless a block opts out and sets its own look.', 'sponsor-manager' ); ?></p>
+			<div id="sponsor-manager-style-preview" class="sponsor-manager-styles__preview-card wp-block-sponsor-manager-grid sponsor-manager-grid" style="<?php echo esc_attr( trim( \SponsorManager\Styles\Repository::palette_css() . ';' . \SponsorManager\Styles\Repository::to_css( $styles, true ), ';' ) ); ?>">
 				<a href="#" class="sponsor-manager-grid__item" onclick="return false;">
 					<span class="sponsor-manager-grid__item-fallback"><?php esc_html_e( 'Sample sponsor ad', 'sponsor-manager' ); ?></span>
 				</a>
@@ -695,73 +388,3 @@ function sponsor_manager_render_styles_tab() {
 	})();
 	</script>
 	<?php
-}
-
-/**
- * Theme/custom color dropdown.
- *
- * @param string $id    Hidden input id.
- * @param string $name  Hidden input name.
- * @param string $value Stored color (hex or CSS variable).
- */
-function sponsor_manager_render_color_control( $id, $name, $value ) {
-	$value     = sponsor_manager_sanitize_color_value( $value );
-	$palette   = sponsor_manager_get_theme_palette();
-	$is_custom = (bool) $value && ! preg_match( '/^var\(--wp--preset--color--/', $value );
-	$hex       = ( $value && '#' === $value[0] ) ? $value : '';
-	$picker    = $hex ? $hex : '#000000';
-	if ( 4 === strlen( $picker ) ) {
-		$picker = '#' . $picker[1] . $picker[1] . $picker[2] . $picker[2] . $picker[3] . $picker[3];
-	}
-
-	$label = __( 'Inherit text color', 'sponsor-manager' );
-	$chip  = 'currentColor';
-	if ( $is_custom ) {
-		$label = __( 'Custom color…', 'sponsor-manager' );
-		$chip  = $hex ? $hex : '#000000';
-	} else {
-		foreach ( $palette as $item ) {
-			if ( $value === $item['css'] ) {
-				$label = $item['name'];
-				$chip  = $item['hex'];
-				break;
-			}
-		}
-	}
-	?>
-	<div class="sponsor-manager-color" data-color-control>
-		<input type="hidden" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $value ); ?>" />
-		<button type="button" class="sponsor-manager-color__toggle" aria-expanded="false" aria-haspopup="listbox">
-			<span class="sponsor-manager-color__chip" style="background:<?php echo esc_attr( $chip ); ?>"></span>
-			<span class="sponsor-manager-color__label"><?php echo esc_html( $label ); ?></span>
-			<span class="sponsor-manager-color__chevron" aria-hidden="true">▾</span>
-		</button>
-		<div class="sponsor-manager-color__menu" hidden role="listbox">
-			<button type="button" class="sponsor-manager-color__option<?php echo '' === $value ? ' is-selected' : ''; ?>" data-color="" data-hex="currentColor" data-label="<?php esc_attr_e( 'Inherit text color', 'sponsor-manager' ); ?>">
-				<span class="sponsor-manager-color__chip" style="background:currentColor"></span>
-				<?php esc_html_e( 'Inherit text color', 'sponsor-manager' ); ?>
-			</button>
-			<?php foreach ( $palette as $item ) : ?>
-				<button
-					type="button"
-					class="sponsor-manager-color__option<?php echo $value === $item['css'] ? ' is-selected' : ''; ?>"
-					data-color="<?php echo esc_attr( $item['css'] ); ?>"
-					data-hex="<?php echo esc_attr( $item['hex'] ); ?>"
-					data-label="<?php echo esc_attr( $item['name'] ); ?>"
-				>
-					<span class="sponsor-manager-color__chip" style="background:<?php echo esc_attr( $item['hex'] ); ?>"></span>
-					<?php echo esc_html( $item['name'] ); ?>
-				</button>
-			<?php endforeach; ?>
-			<button type="button" class="sponsor-manager-color__option<?php echo $is_custom ? ' is-selected' : ''; ?>" data-color="__custom" data-hex="#000000" data-label="<?php esc_attr_e( 'Custom color…', 'sponsor-manager' ); ?>">
-				<span class="sponsor-manager-color__chip" style="background:conic-gradient(red, yellow, lime, aqua, blue, magenta, red)"></span>
-				<?php esc_html_e( 'Custom color…', 'sponsor-manager' ); ?>
-			</button>
-		</div>
-		<div class="sponsor-manager-color__custom" <?php echo $is_custom ? '' : 'hidden'; ?>>
-			<input type="text" class="sponsor-manager-color__hex" value="<?php echo esc_attr( $hex ); ?>" placeholder="#000000" aria-label="<?php esc_attr_e( 'Custom color', 'sponsor-manager' ); ?>" />
-			<input type="color" class="sponsor-manager-color__picker" value="<?php echo esc_attr( $picker ); ?>" aria-label="<?php esc_attr_e( 'Color picker', 'sponsor-manager' ); ?>" />
-		</div>
-	</div>
-	<?php
-}

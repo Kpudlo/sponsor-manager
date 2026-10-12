@@ -1,0 +1,27 @@
+=== Sponsor Manager ===
+Contributors: bemistech
+Requires at least: 6.2
+Tested up to: 7.1
+Requires PHP: 7.4
+Stable tag: 1.5.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Booking, scheduling, and Gutenberg blocks for sponsor ads and placements.
+
+== Description ==
+
+Sponsor Manager stores sponsor ads as a custom post type, assigns them to placements, and serves them through the Sponsors block (horizontal or vertical).
+
+Updates are delivered from GitHub Releases (not WordPress.org).
+
+== Changelog ==
+
+= 1.5.0 =
+* Replaces Sponsor Grid and Sponsor Sidebar with one Sponsors block. Choose horizontal or vertical and a maximum number of ads. Existing sidebar blocks still render and convert in the editor.
+
+= 1.4.0 =
+* Registers the Sponsor Ad post type, placements, and booking fields in the plugin. ACF / SCF is no longer required and can stay active for other content.
+
+= 1.3.3 =
+* Namespaced classes, thin bootstrap, and admin menu registered early so the dashboard nests correctly under Sponsor Manager.

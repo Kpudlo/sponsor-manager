@@ -1,50 +1,25 @@
-import { __ } from '@wordpress/i18n';
-import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
-import { PanelBody, Placeholder } from '@wordpress/components';
-import ServerSideRender from '@wordpress/server-side-render';
-import PlacementControl from '../shared/placement-control';
-import StyleControls from '../shared/style-controls';
-import metadata from './block.json';
+import { createBlock } from '@wordpress/blocks';
+import { useDispatch } from '@wordpress/data';
+import { useEffect, useRef } from '@wordpress/element';
 
-export default function Edit( { attributes, setAttributes } ) {
-	const blockProps = useBlockProps();
-	const { placement } = attributes;
+export default function Edit( { attributes, clientId } ) {
+	const { replaceBlock } = useDispatch( 'core/block-editor' );
+	const didReplace = useRef( false );
 
-	return (
-		<div { ...blockProps }>
-			<InspectorControls>
-				<PanelBody title={ __( 'Placement', 'sponsor-manager' ) }>
-					<PlacementControl
-						value={ placement }
-						onChange={ ( value ) => setAttributes( { placement: value } ) }
-					/>
-				</PanelBody>
-				<StyleControls
-					attributes={ attributes }
-					setAttributes={ setAttributes }
-				/>
-			</InspectorControls>
+	useEffect( () => {
+		if ( didReplace.current ) {
+			return;
+		}
+		didReplace.current = true;
+		replaceBlock(
+			clientId,
+			createBlock( 'sponsor-manager/grid', {
+				...attributes,
+				orientation: 'vertical',
+				maxItems: attributes.maxItems > 0 ? attributes.maxItems : 12,
+			} )
+		);
+	}, [ attributes, clientId, replaceBlock ] );
 
-			{ ! placement ? (
-				<Placeholder
-					icon="align-wide"
-					label={ metadata.title }
-					instructions={ __(
-						'Choose a sponsor placement in the block settings.',
-						'sponsor-manager'
-					) }
-				>
-					<PlacementControl
-						value={ placement }
-						onChange={ ( value ) => setAttributes( { placement: value } ) }
-					/>
-				</Placeholder>
-			) : (
-				<ServerSideRender
-					block={ metadata.name }
-					attributes={ attributes }
-				/>
-			) }
-		</div>
-	);
+	return null;
 }

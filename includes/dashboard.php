@@ -1,122 +1,45 @@
 <?php
 /**
- * Dashboard tabs for creating and managing ads and placements.
+ * Ads and Placements tab CRUD for the dashboard.
+ *
+ * @package SponsorManager
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Ad title plus company for inventory/widget copy.
- *
- * @param WP_Post|int $post
- * @return string
- */
-function sponsor_manager_format_booking_label( $post ) {
-	$post = get_post( $post );
-	if ( ! $post ) {
-		return '';
-	}
-
-	$title   = get_the_title( $post );
-	$company = trim( (string) get_post_meta( $post->ID, 'sponsor_name', true ) );
-
-	if ( $title && $company && 0 !== strcasecmp( $title, $company ) ) {
-		return $title . ' — ' . $company;
-	}
-
-	return $title ? $title : $company;
-}
-
-function sponsor_manager_dashboard_url( $args = array() ) {
-	return add_query_arg(
-		array_merge(
-			array( 'page' => 'sponsor_manager' ),
-			$args
-		),
-		admin_url( 'admin.php' )
-	);
-}
-
-function sponsor_manager_is_protected_placement( $term ) {
-	if ( ! $term || is_wp_error( $term ) ) {
-		return false;
-	}
-
-	return in_array( $term->slug, sponsor_manager_get_everywhere_slugs(), true );
-}
-
 add_action( 'admin_init', 'sponsor_manager_handle_dashboard_actions' );
+/**
+ * Route Ads and Placements form submissions.
+ */
 function sponsor_manager_handle_dashboard_actions() {
 	if ( ! is_admin() ) {
 		return;
 	}
 
-	if ( isset( $_POST['sponsor_manager_save_ad'] ) ) {
-		sponsor_manager_save_ad_from_dashboard();
-	}
-
-	if ( isset( $_POST['sponsor_manager_save_placement'] ) ) {
-		sponsor_manager_save_placement_from_dashboard();
-	}
-
-	if ( isset( $_GET['sponsor_manager_trash_ad'] ) ) {
-		sponsor_manager_trash_ad_from_dashboard();
-	}
-
-	if ( isset( $_GET['sponsor_manager_delete_placement'] ) ) {
-		sponsor_manager_delete_placement_from_dashboard();
-	}
+	sponsor_manager_save_ad_from_dashboard();
+	sponsor_manager_save_placement_from_dashboard();
+	sponsor_manager_trash_ad_from_dashboard();
+	sponsor_manager_delete_placement_from_dashboard();
 }
 
-add_action( 'admin_enqueue_scripts', 'sponsor_manager_enqueue_dashboard_assets' );
-function sponsor_manager_enqueue_dashboard_assets( $hook ) {
-	if ( 'toplevel_page_sponsor_manager' !== $hook ) {
-		return;
-	}
-
-	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'overview';
-	if ( 'ads' !== $tab ) {
-		return;
-	}
-
-	wp_enqueue_media();
-	wp_add_inline_script(
-		'jquery',
-		'(function($){
-			$(function(){
-				var frame;
-				$(".sponsor-manager-select-image").on("click", function(e){
-					e.preventDefault();
-					if (!frame) {
-						frame = wp.media({
-							title: "Select ad image",
-							button: { text: "Use this image" },
-							library: { type: "image" },
-							multiple: false
-						});
-						frame.on("select", function(){
-							var att = frame.state().get("selection").first().toJSON();
-							$("#sponsor-ad-image-id").val(att.id);
-							var url = (att.sizes && att.sizes.medium) ? att.sizes.medium.url : att.url;
-							$(".sponsor-manager-image-preview").html("<img src=\""+url+"\" alt=\"\" style=\"max-width:320px;height:auto;display:block;\" />");
-							$(".sponsor-manager-remove-image").prop("hidden", false);
-						});
-					}
-					frame.open();
-				});
-				$(".sponsor-manager-remove-image").on("click", function(e){
-					e.preventDefault();
-					$("#sponsor-ad-image-id").val("0");
-					$(".sponsor-manager-image-preview").empty();
-					$(this).prop("hidden", true);
-				});
-			});
-		})(jQuery);'
-	);
+/**
+ * Whether a placement term is Everywhere (not deletable).
+ *
+ * @param \WP_Term|null $term Term.
+ * @return bool
+ */
+function sponsor_manager_is_protected_placement( $term ) {
+	return \SponsorManager\Ads\Placements::is_protected( $term );
 }
 
+/**
+ * Convert stored Ymd to an HTML date input value.
+ *
+ * @param string $value Ymd date.
+ * @return string
+ */
 function sponsor_manager_ymd_to_input( $value ) {
 	$value = preg_replace( '/[^0-9]/', '', (string) $value );
 	if ( 8 !== strlen( $value ) ) {
@@ -126,6 +49,12 @@ function sponsor_manager_ymd_to_input( $value ) {
 	return substr( $value, 0, 4 ) . '-' . substr( $value, 4, 2 ) . '-' . substr( $value, 6, 2 );
 }
 
+/**
+ * Convert an HTML date input to stored Ymd.
+ *
+ * @param string $value YYYY-MM-DD.
+ * @return string
+ */
 function sponsor_manager_input_to_ymd( $value ) {
 	$value = sanitize_text_field( (string) $value );
 	if ( preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches ) ) {
@@ -135,15 +64,24 @@ function sponsor_manager_input_to_ymd( $value ) {
 	return '';
 }
 
+/**
+ * Create or update an ad from the Ads tab.
+ */
 function sponsor_manager_save_ad_from_dashboard() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
-		wp_die( esc_html__( 'Sorry, you are not allowed to manage sponsor ads.', 'sponsor-manager' ) );
+	if ( ! isset( $_POST['sponsor_manager_save_ad'] ) ) {
+		return;
 	}
 
 	check_admin_referer( 'sponsor_manager_save_ad' );
 
-	$input = isset( $_POST['sponsor_ad'] ) ? wp_unslash( $_POST['sponsor_ad'] ) : array();
-	$input = is_array( $input ) ? $input : array();
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to manage sponsor ads.', 'sponsor-manager' ) );
+	}
+
+	$input = array();
+	if ( isset( $_POST['sponsor_ad'] ) && is_array( $_POST['sponsor_ad'] ) ) {
+		$input = map_deep( wp_unslash( $_POST['sponsor_ad'] ), 'sanitize_text_field' );
+	}
 
 	$title   = sanitize_text_field( $input['title'] ?? '' );
 	$company = sanitize_text_field( $input['company'] ?? '' );
@@ -181,19 +119,11 @@ function sponsor_manager_save_ad_from_dashboard() {
 		exit;
 	}
 
-	if ( function_exists( 'update_field' ) ) {
-		update_field( 'sponsor_name', $company, $saved_id );
-		update_field( 'sponsor_url', $link, $saved_id );
-		update_field( 'sponsor_start_date', $start, $saved_id );
-		update_field( 'sponsor_end_date', $end, $saved_id );
-		update_field( 'sponsor_priority', $priority > 0 ? $priority : 10, $saved_id );
-	} else {
-		update_post_meta( $saved_id, 'sponsor_name', $company );
-		update_post_meta( $saved_id, 'sponsor_url', $link );
-		update_post_meta( $saved_id, 'sponsor_start_date', $start );
-		update_post_meta( $saved_id, 'sponsor_end_date', $end );
-		update_post_meta( $saved_id, 'sponsor_priority', $priority > 0 ? $priority : 10 );
-	}
+	update_post_meta( $saved_id, 'sponsor_name', $company );
+	update_post_meta( $saved_id, 'sponsor_url', $link );
+	update_post_meta( $saved_id, 'sponsor_start_date', $start );
+	update_post_meta( $saved_id, 'sponsor_end_date', $end );
+	update_post_meta( $saved_id, 'sponsor_priority', $priority > 0 ? $priority : 10 );
 	if ( $paused ) {
 		update_post_meta( $saved_id, SPONSOR_MANAGER_LEGACY_PAUSE_META, 1 );
 	} else {
@@ -213,9 +143,17 @@ function sponsor_manager_save_ad_from_dashboard() {
 	exit;
 }
 
+/**
+ * Move an ad to the trash from the Ads tab.
+ */
 function sponsor_manager_trash_ad_from_dashboard() {
+	if ( ! isset( $_GET['sponsor_manager_trash_ad'] ) ) {
+		return;
+	}
+
+	check_admin_referer( 'sponsor_manager_trash_ad_' . absint( wp_unslash( $_GET['sponsor_manager_trash_ad'] ) ) );
+
 	$ad_id = absint( wp_unslash( $_GET['sponsor_manager_trash_ad'] ) );
-	check_admin_referer( 'sponsor_manager_trash_ad_' . $ad_id );
 
 	if ( ! $ad_id || ! current_user_can( 'delete_post', $ad_id ) ) {
 		wp_die( esc_html__( 'Sorry, you are not allowed to delete this ad.', 'sponsor-manager' ) );
@@ -230,15 +168,24 @@ function sponsor_manager_trash_ad_from_dashboard() {
 	exit;
 }
 
+/**
+ * Create or update a placement from the Placements tab.
+ */
 function sponsor_manager_save_placement_from_dashboard() {
-	if ( ! current_user_can( 'manage_categories' ) ) {
-		wp_die( esc_html__( 'Sorry, you are not allowed to manage placements.', 'sponsor-manager' ) );
+	if ( ! isset( $_POST['sponsor_manager_save_placement'] ) ) {
+		return;
 	}
 
 	check_admin_referer( 'sponsor_manager_save_placement' );
 
-	$input = isset( $_POST['sponsor_placement'] ) ? wp_unslash( $_POST['sponsor_placement'] ) : array();
-	$input = is_array( $input ) ? $input : array();
+	if ( ! current_user_can( 'manage_categories' ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to manage placements.', 'sponsor-manager' ) );
+	}
+
+	$input = array();
+	if ( isset( $_POST['sponsor_placement'] ) && is_array( $_POST['sponsor_placement'] ) ) {
+		$input = map_deep( wp_unslash( $_POST['sponsor_placement'] ), 'sanitize_text_field' );
+	}
 
 	$name        = sanitize_text_field( $input['name'] ?? '' );
 	$slug        = sanitize_title( $input['slug'] ?? '' );
@@ -280,9 +227,17 @@ function sponsor_manager_save_placement_from_dashboard() {
 	exit;
 }
 
+/**
+ * Delete a non-protected placement from the Placements tab.
+ */
 function sponsor_manager_delete_placement_from_dashboard() {
+	if ( ! isset( $_GET['sponsor_manager_delete_placement'] ) ) {
+		return;
+	}
+
+	check_admin_referer( 'sponsor_manager_delete_placement_' . absint( wp_unslash( $_GET['sponsor_manager_delete_placement'] ) ) );
+
 	$term_id = absint( wp_unslash( $_GET['sponsor_manager_delete_placement'] ) );
-	check_admin_referer( 'sponsor_manager_delete_placement_' . $term_id );
 
 	if ( ! current_user_can( 'manage_categories' ) ) {
 		wp_die( esc_html__( 'Sorry, you are not allowed to manage placements.', 'sponsor-manager' ) );
@@ -297,9 +252,14 @@ function sponsor_manager_delete_placement_from_dashboard() {
 	exit;
 }
 
+/**
+ * Flash notices after Ads/Placements CRUD.
+ */
 function sponsor_manager_render_dashboard_notices() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Display-only query args after our own redirect.
 	$updated = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : '';
 	$error   = isset( $_GET['error'] ) ? sanitize_key( wp_unslash( $_GET['error'] ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 	$messages = array(
 		'ad-saved'           => __( 'Ad saved.', 'sponsor-manager' ),
@@ -321,6 +281,9 @@ function sponsor_manager_render_dashboard_notices() {
 	}
 }
 
+/**
+ * Overview shortcuts to Ads and Placements.
+ */
 function sponsor_manager_render_overview_actions() {
 	echo '<p class="sponsor-manager-overview-actions" style="margin:16px 0 8px;">';
 	printf(
@@ -348,7 +311,11 @@ function sponsor_manager_render_overview_actions() {
 	echo '</p>';
 }
 
+/**
+ * Ads tab: list plus create/edit form.
+ */
 function sponsor_manager_render_ads_tab() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only tab state.
 	$editing_id = isset( $_GET['ad'] ) ? sanitize_text_field( wp_unslash( $_GET['ad'] ) ) : '';
 	$show_form  = 'new' === $editing_id || absint( $editing_id ) > 0;
 	$post       = absint( $editing_id ) ? get_post( absint( $editing_id ) ) : null;
@@ -423,6 +390,11 @@ function sponsor_manager_render_ads_tab() {
 	echo '</div>';
 }
 
+/**
+ * Create/edit form for a sponsor ad.
+ *
+ * @param \WP_Post|null $post Existing ad.
+ */
 function sponsor_manager_render_ad_form( $post = null ) {
 	$is_edit   = $post instanceof WP_Post;
 	$title     = $is_edit ? $post->post_title : '';
@@ -527,12 +499,16 @@ function sponsor_manager_render_ad_form( $post = null ) {
 	echo '</form></div>';
 }
 
+/**
+ * Placements tab: list plus create/edit form.
+ */
 function sponsor_manager_render_placements_tab() {
 	if ( ! current_user_can( 'manage_categories' ) ) {
 		echo '<p>' . esc_html__( 'You do not have permission to manage placements.', 'sponsor-manager' ) . '</p>';
 		return;
 	}
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only tab state.
 	$editing_id = isset( $_GET['placement'] ) ? sanitize_text_field( wp_unslash( $_GET['placement'] ) ) : '';
 	$show_form  = 'new' === $editing_id || absint( $editing_id ) > 0;
 	$term       = absint( $editing_id ) ? get_term( absint( $editing_id ), 'sponsor_placement' ) : null;
@@ -589,6 +565,11 @@ function sponsor_manager_render_placements_tab() {
 	echo '</tbody></table></div>';
 }
 
+/**
+ * Create/edit form for a placement term.
+ *
+ * @param \WP_Term|null $term Existing term.
+ */
 function sponsor_manager_render_placement_form( $term = null ) {
 	$is_edit     = $term instanceof WP_Term;
 	$protected   = $is_edit && sponsor_manager_is_protected_placement( $term );
